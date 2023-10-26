@@ -14,6 +14,7 @@ export default function NotesRoute() {
 			<div>
 				{notes.map(note => (
 					<NavLink
+						key={note}
 						to={note}
 						className={({ isActive }) =>
 							`underline ${isActive ? 'bg-accent' : ''}`

@@ -1,15 +1,19 @@
 import { Link, useLoaderData, useParams } from '@remix-run/react'
 import { type DataFunctionArgs, json } from '@remix-run/node'
 import { db } from '#utils/db.server.ts'
+import { invariantResponse } from '#utils/misc.tsx'
 import _ from 'lodash'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { username } = params
+	console.log('user in username path')
 	const user = db.user.findFirst({
 		where: {
 			username: { equals: username },
 		},
 	})
+	invariantResponse(user, `${username} username not found`, { status: 404 })
+
 	return json({
 		user: {
 			name: user.name,

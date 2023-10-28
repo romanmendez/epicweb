@@ -21,6 +21,18 @@ export async function loader({ params }: DataFunctionArgs) {
 	})
 }
 
+export async function action({ request, params }: DataFunctionArgs) {
+	const formData = await request.formData()
+	const title = formData.get('title')
+	const content = formData.get('content')
+	db.note.update({
+		where: { id: { equals: params.noteId } },
+		// @ts-expect-error
+		data: { title, content },
+	})
+	return redirect(`/users/${params.username}/notes/${params.noteId}`)
+}
+
 export default function NoteEdit() {
 	const data = useLoaderData<typeof loader>()
 	return (

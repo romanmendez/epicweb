@@ -1,8 +1,8 @@
 import { useLoaderData, useParams, Link, Form } from '@remix-run/react'
 import { type DataFunctionArgs, json, redirect } from '@remix-run/node'
-import { db } from '#utils/db.server.ts'
+import { db } from '#app/utils/db.server.ts'
 import { Button } from '#app/components/ui/button.tsx'
-import { invariantResponse } from '#utils/misc.tsx'
+import { invariantResponse } from '#app/utils/misc.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 
 export async function loader({ params }: DataFunctionArgs) {

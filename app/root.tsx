@@ -8,10 +8,12 @@ import {
 	Outlet,
 	Scripts,
 	useLoaderData,
+	ScrollRestoration,
 } from '@remix-run/react'
 import faviconAssetUrl from './assets/favicon.svg'
 import fontStylestylesheetUrl from './styles/font.css'
 import tailwindStylesheetUrl from './styles/tailwind.css'
+import { getEnv } from './utils/env.server.ts'
 
 export const links: LinksFunction = () => {
 	return [
@@ -23,11 +25,12 @@ export const links: LinksFunction = () => {
 }
 
 export async function loader() {
-	return json({ username: os.userInfo().username })
+	return json({ username: os.userInfo().username, ENV: getEnv() })
 }
 
 export default function App() {
 	const data = useLoaderData<typeof loader>()
+	console.log(ENV)
 	return (
 		<html lang="en" className="h-full overflow-x-hidden">
 			<head>
@@ -58,6 +61,12 @@ export default function App() {
 					<p>Built with ♥️ by {data.username}</p>
 				</div>
 				<div className="h-5" />
+				<ScrollRestoration />
+				<script
+					dangerouslySetInnerHTML={{
+						__html: `window.ENV = ${JSON.stringify(data.ENV)}`,
+					}}
+				/>
 				<Scripts />
 				<LiveReload />
 			</body>

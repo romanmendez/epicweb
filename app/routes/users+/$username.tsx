@@ -1,7 +1,7 @@
 import { Link, useLoaderData, useParams } from '@remix-run/react'
 import { type DataFunctionArgs, json } from '@remix-run/node'
-import { db } from '#utils/db.server.ts'
-import { invariantResponse } from '#utils/misc.tsx'
+import { db } from '#app/utils/db.server.ts'
+import { invariantResponse } from '#app/utils/misc.tsx'
 import _ from 'lodash'
 
 export async function loader({ params }: DataFunctionArgs) {

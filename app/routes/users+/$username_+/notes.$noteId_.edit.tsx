@@ -1,7 +1,7 @@
 import { json, type DataFunctionArgs, redirect } from '@remix-run/node'
 import { useLoaderData, Form } from '@remix-run/react'
-import { db } from '#utils/db.server.ts'
-import { invariantResponse } from '#utils/misc.tsx'
+import { db } from '#app/utils/db.server.ts'
+import { invariantResponse } from '#app/utils/misc.tsx'
 import { Button, Label, Input, Textarea } from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 

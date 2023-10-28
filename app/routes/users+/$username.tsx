@@ -1,8 +1,20 @@
-import { Link, useLoaderData, useParams } from '@remix-run/react'
+import {
+	Link,
+	useLoaderData,
+	useParams,
+	type MetaFunction,
+} from '@remix-run/react'
 import { type DataFunctionArgs, json } from '@remix-run/node'
 import { db } from '#app/utils/db.server.ts'
 import { invariantResponse } from '#app/utils/misc.tsx'
 import _ from 'lodash'
+
+export const meta: MetaFunction = () => {
+	return [
+		{ title: 'Profile | Epic Notes' },
+		{ name: 'description', content: 'Main profile page' },
+	]
+}
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { username } = params

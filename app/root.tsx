@@ -9,12 +9,23 @@ import {
 	Scripts,
 	useLoaderData,
 	ScrollRestoration,
+	Meta,
+	type MetaFunction,
 } from '@remix-run/react'
 import faviconAssetUrl from './assets/favicon.svg'
 import fontStylestylesheetUrl from './styles/font.css'
 import tailwindStylesheetUrl from './styles/tailwind.css'
 import { getEnv } from './utils/env.server.ts'
 
+export const meta: MetaFunction = () => {
+	return [
+		{ title: 'Epic Notes' },
+		{
+			name: 'description',
+			content: 'A note taking app made during the Epic Web course',
+		},
+	]
+}
 export const links: LinksFunction = () => {
 	return [
 		{ rel: 'icon', type: 'image/svg+xml', href: faviconAssetUrl },
@@ -33,21 +44,7 @@ export default function App() {
 	return (
 		<html lang="en" className="h-full overflow-x-hidden">
 			<head>
-				{/*
-					🐨 add <title>
-					(use whatever you'd like for the title)
-					🐨 add <meta> for description
-					(use whatever you'd like for the description)
-					🐨 add <meta> for charSet
-					💰 here's a good charSet value: "utf-8"
-					🐨 add <meta> for and viewport
-					💰 here's a good viewport value: "width=device-width,initial-scale=1"
-				 */}
-				<title>Epic Web App</title>
-				<meta
-					name="description"
-					content="a app created during the Epic Web Course by Kent C. Dodds"
-				/>
+				<Meta />
 				<meta name="viewport" content="width=device-width,initial-scale=1" />
 				<meta name="charSet" content="utf-8" />
 				<Links />

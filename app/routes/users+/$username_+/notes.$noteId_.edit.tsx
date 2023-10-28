@@ -50,7 +50,11 @@ export async function action({ request, params }: DataFunctionArgs) {
 export default function NoteEdit() {
 	const data = useLoaderData<typeof loader>()
 	const navigation = useNavigation()
-	const isSubmitting = navigation.state !== 'idle'
+	const formAction = useFormAction()
+	const isSubmitting =
+		navigation.state !== 'idle' &&
+		navigation.formAction === formAction &&
+		navigation.formMethod === 'POST'
 
 	return (
 		<Form

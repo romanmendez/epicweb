@@ -1,8 +1,19 @@
 import { json, type DataFunctionArgs, redirect } from '@remix-run/node'
-import { useLoaderData, Form } from '@remix-run/react'
+import {
+	useLoaderData,
+	Form,
+	useNavigation,
+	useFormAction,
+} from '@remix-run/react'
 import { db } from '#app/utils/db.server.ts'
 import { invariantResponse } from '#app/utils/misc.tsx'
-import { Button, Label, Input, Textarea } from '#app/components/ui/index.tsx'
+import {
+	Button,
+	Label,
+	Input,
+	Textarea,
+	StatusButton,
+} from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 
 export async function loader({ params }: DataFunctionArgs) {
@@ -38,6 +49,9 @@ export async function action({ request, params }: DataFunctionArgs) {
 
 export default function NoteEdit() {
 	const data = useLoaderData<typeof loader>()
+	const navigation = useNavigation()
+	const isSubmitting = navigation.state !== 'idle'
+
 	return (
 		<Form
 			method="POST"
@@ -54,7 +68,13 @@ export default function NoteEdit() {
 				</div>
 			</div>
 			<div className={floatingToolbarClassName}>
-				<Button type="submit">Submit</Button>
+				<StatusButton
+					type="submit"
+					disabled={isSubmitting}
+					status={isSubmitting ? 'pending' : 'idle'}
+				>
+					{isSubmitting ? 'Submitting' : 'Submit'}
+				</StatusButton>
 				<Button type="reset">Reset</Button>
 			</div>
 		</Form>

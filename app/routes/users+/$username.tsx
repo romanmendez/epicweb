@@ -25,13 +25,6 @@ export async function loader({ params }: DataFunctionArgs) {
 		},
 	})
 }
-export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
-	const displayName = data?.user.name ?? params.username
-	return [
-		{ title: `${displayName} | Epic Notes` },
-		{ name: 'description', content: `${displayName}'s profile page` },
-	]
-}
 
 export default function profileRoute() {
 	const { user } = useLoaderData<typeof loader>()
@@ -43,4 +36,12 @@ export default function profileRoute() {
 			</Link>
 		</div>
 	)
+}
+
+export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
+	const displayName = data?.user.name ?? params.username
+	return [
+		{ title: `${displayName} | Epic Notes` },
+		{ name: 'description', content: `${displayName}'s profile page` },
+	]
 }

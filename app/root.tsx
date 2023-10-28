@@ -17,15 +17,6 @@ import fontStylestylesheetUrl from './styles/font.css'
 import tailwindStylesheetUrl from './styles/tailwind.css'
 import { getEnv } from './utils/env.server.ts'
 
-export const meta: MetaFunction = () => {
-	return [
-		{ title: 'Epic Notes' },
-		{
-			name: 'description',
-			content: 'A note taking app made during the Epic Web course',
-		},
-	]
-}
 export const links: LinksFunction = () => {
 	return [
 		{ rel: 'icon', type: 'image/svg+xml', href: faviconAssetUrl },
@@ -85,4 +76,14 @@ export default function App() {
 			</body>
 		</html>
 	)
+}
+
+export const meta: MetaFunction = () => {
+	return [
+		{ title: 'Epic Notes' },
+		{
+			name: 'description',
+			content: 'A note taking app made during the Epic Web course',
+		},
+	]
 }

@@ -1,9 +1,16 @@
-import { useLoaderData, useParams, Link, Form } from '@remix-run/react'
+import {
+	useLoaderData,
+	useParams,
+	Link,
+	Form,
+	type MetaFunction,
+} from '@remix-run/react'
 import { type DataFunctionArgs, json, redirect } from '@remix-run/node'
 import { db } from '#app/utils/db.server.ts'
 import { Button } from '#app/components/ui/button.tsx'
 import { invariantResponse } from '#app/utils/misc.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
+import { loader as notesLoader } from './notes.tsx'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { noteId } = params
@@ -53,4 +60,27 @@ export default function SomeNoteId() {
 			</div>
 		</div>
 	)
+}
+
+export const meta: MetaFunction<
+	typeof loader,
+	{ 'routes/users+/$username_+/notes': typeof notesLoader }
+> = ({ data, params, matches }) => {
+	console.log(matches, data)
+	const notesRoute = matches.find(
+		m => m.id === 'routes/users+/$username_+/notes',
+	)
+	const displayName = notesRoute?.data.owner.name
+	const noteTitle = data?.note.title ?? 'Note'
+	const noteContentsSummary =
+		data && data.note.content.length > 100
+			? data?.note.content.slice(0, 97) + '...'
+			: 'No content'
+	return [
+		{ title: `${noteTitle} | ${displayName}'s Notes | Epic Notes` },
+		{
+			name: 'description',
+			content: noteContentsSummary,
+		},
+	]
 }

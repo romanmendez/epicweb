@@ -9,16 +9,8 @@ import { db } from '#app/utils/db.server.ts'
 import { invariantResponse } from '#app/utils/misc.tsx'
 import _ from 'lodash'
 
-export const meta: MetaFunction = () => {
-	return [
-		{ title: 'Profile | Epic Notes' },
-		{ name: 'description', content: 'Main profile page' },
-	]
-}
-
 export async function loader({ params }: DataFunctionArgs) {
 	const { username } = params
-	console.log('user in username path')
 	const user = db.user.findFirst({
 		where: {
 			username: { equals: username },
@@ -32,6 +24,13 @@ export async function loader({ params }: DataFunctionArgs) {
 			username: user.username,
 		},
 	})
+}
+export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
+	const displayName = data?.user.name ?? params.username
+	return [
+		{ title: `${displayName} | Epic Notes` },
+		{ name: 'description', content: `${displayName}'s profile page` },
+	]
 }
 
 export default function profileRoute() {

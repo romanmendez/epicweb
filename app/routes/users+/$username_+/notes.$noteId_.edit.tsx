@@ -25,9 +25,12 @@ export async function action({ request, params }: DataFunctionArgs) {
 	const formData = await request.formData()
 	const title = formData.get('title')
 	const content = formData.get('content')
+
+	invariantResponse(typeof title === 'string', 'Invalid title')
+	invariantResponse(typeof content === 'string', 'Invalid title')
+
 	db.note.update({
 		where: { id: { equals: params.noteId } },
-		// @ts-expect-error
 		data: { title, content },
 	})
 	return redirect(`/users/${params.username}/notes/${params.noteId}`)

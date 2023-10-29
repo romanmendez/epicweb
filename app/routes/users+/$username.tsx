@@ -2,11 +2,14 @@ import {
 	Link,
 	useLoaderData,
 	useParams,
+	useRouteError,
 	type MetaFunction,
+	type ErrorResponse,
+	isRouteErrorResponse,
 } from '@remix-run/react'
 import { type DataFunctionArgs, json } from '@remix-run/node'
 import { db } from '#app/utils/db.server.ts'
-import { invariantResponse } from '#app/utils/misc.tsx'
+import { invariantResponse, getErrorMessage } from '#app/utils/misc.tsx'
 import _ from 'lodash'
 
 export async function loader({ params }: DataFunctionArgs) {
@@ -44,4 +47,16 @@ export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
 		{ title: `${displayName} | Epic Notes` },
 		{ name: 'description', content: `${displayName}'s profile page` },
 	]
+}
+
+export function ErrorBoundary() {
+	const error = useRouteError()
+	const params = useParams()
+	const errorMsg = getErrorMessage(error)
+
+	return (
+		<div className="container mx-auto flex h-full w-full items-center justify-center bg-destructive p-20 text-h2 text-destructive-foreground">
+			{errorMsg}
+		</div>
+	)
 }

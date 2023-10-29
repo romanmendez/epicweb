@@ -15,6 +15,7 @@ import {
 	StatusButton,
 } from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = db.note.findFirst({
@@ -82,5 +83,17 @@ export default function NoteEdit() {
 				<Button type="reset">Reset</Button>
 			</div>
 		</Form>
+	)
+}
+
+export function ErrorBoundary() {
+	return (
+		<GeneralErrorBoundary
+			statusHandlers={{
+				404: ({ params }) => (
+					<p>Something went wrong with your edit. Please try again.</p>
+				),
+			}}
+		/>
 	)
 }

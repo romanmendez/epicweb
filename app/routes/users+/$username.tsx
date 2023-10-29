@@ -10,6 +10,7 @@ import {
 import { type DataFunctionArgs, json } from '@remix-run/node'
 import { db } from '#app/utils/db.server.ts'
 import { invariantResponse, getErrorMessage } from '#app/utils/misc.tsx'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import _ from 'lodash'
 
 export async function loader({ params }: DataFunctionArgs) {
@@ -50,13 +51,13 @@ export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
 }
 
 export function ErrorBoundary() {
-	const error = useRouteError()
-	const params = useParams()
-	const errorMsg = getErrorMessage(error)
-
 	return (
-		<div className="container mx-auto flex h-full w-full items-center justify-center bg-destructive p-20 text-h2 text-destructive-foreground">
-			{errorMsg}
-		</div>
+		<GeneralErrorBoundary
+			statusHandlers={{
+				403: ({ params }) => (
+					<p>You're not authorized to look at {params.sandwichId}</p>
+				),
+			}}
+		/>
 	)
 }

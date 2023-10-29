@@ -1,15 +1,10 @@
-import {
-	useLoaderData,
-	useParams,
-	Link,
-	Form,
-	type MetaFunction,
-} from '@remix-run/react'
+import { useLoaderData, Link, Form, type MetaFunction } from '@remix-run/react'
 import { type DataFunctionArgs, json, redirect } from '@remix-run/node'
 import { db } from '#app/utils/db.server.ts'
 import { Button } from '#app/components/ui/button.tsx'
 import { invariantResponse } from '#app/utils/misc.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { loader as notesLoader } from './notes.tsx'
 
 export async function loader({ params }: DataFunctionArgs) {
@@ -65,8 +60,7 @@ export default function SomeNoteId() {
 export const meta: MetaFunction<
 	typeof loader,
 	{ 'routes/users+/$username_+/notes': typeof notesLoader }
-> = ({ data, params, matches }) => {
-	console.log(matches, data)
+> = ({ data, matches }) => {
 	const notesRoute = matches.find(
 		m => m.id === 'routes/users+/$username_+/notes',
 	)
@@ -83,4 +77,16 @@ export const meta: MetaFunction<
 			content: noteContentsSummary,
 		},
 	]
+}
+
+export function ErrorBoundary() {
+	return (
+		<GeneralErrorBoundary
+			statusHandlers={{
+				404: ({ params }) => (
+					<p>No note was found with the ID {params.noteId}</p>
+				),
+			}}
+		/>
+	)
 }

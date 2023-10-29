@@ -3,19 +3,16 @@ import { cssBundleHref } from '@remix-run/css-bundle'
 import { json, type LinksFunction } from '@remix-run/node'
 import {
 	Link,
-	Links,
-	LiveReload,
 	Outlet,
-	Scripts,
 	useLoaderData,
-	ScrollRestoration,
-	Meta,
 	type MetaFunction,
 } from '@remix-run/react'
-import faviconAssetUrl from './assets/favicon.svg'
-import fontStylestylesheetUrl from './styles/font.css'
-import tailwindStylesheetUrl from './styles/tailwind.css'
-import { getEnv } from './utils/env.server.ts'
+import faviconAssetUrl from '#app/assets/favicon.svg'
+import fontStylestylesheetUrl from '#app/styles/font.css'
+import tailwindStylesheetUrl from '#app/styles/tailwind.css'
+import { getEnv } from '#app/utils/env.server.ts'
+import { Document } from '#app/components/document.tsx'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 
 export const links: LinksFunction = () => {
 	return [
@@ -33,48 +30,35 @@ export async function loader() {
 export default function App() {
 	const data = useLoaderData<typeof loader>()
 	return (
-		<html lang="en" className="h-full overflow-x-hidden">
-			<head>
-				<Meta />
-				<meta name="viewport" content="width=device-width,initial-scale=1" />
-				<meta name="charSet" content="utf-8" />
-				<Links />
-			</head>
-			<body className="flex h-full flex-col justify-between bg-background text-foreground">
-				<header className="container mx-auto py-6">
-					<nav className="flex justify-between">
-						<Link to="/">
-							<div className="font-light">epic</div>
-							<div className="font-bold">notes</div>
-						</Link>
-						<Link className="underline" to="users/kody">
-							Kody
-						</Link>
-					</nav>
-				</header>
-
-				<div className="flex-1">
-					<Outlet />
-				</div>
-
-				<div className="container mx-auto flex justify-between">
+		<Document>
+			<header className="container mx-auto py-6">
+				<nav className="flex justify-between">
 					<Link to="/">
 						<div className="font-light">epic</div>
 						<div className="font-bold">notes</div>
 					</Link>
-					<p>Built with ♥️ by {data.username}</p>
-				</div>
-				<div className="h-5" />
-				<ScrollRestoration />
-				<script
-					dangerouslySetInnerHTML={{
-						__html: `window.ENV = ${JSON.stringify(data.ENV)}`,
-					}}
-				/>
-				<Scripts />
-				<LiveReload />
-			</body>
-		</html>
+					<Link className="underline" to="users/kody">
+						Kody
+					</Link>
+				</nav>
+			</header>
+			<div className="flex-1">
+				<Outlet />
+			</div>
+			<div className="container mx-auto flex justify-between">
+				<Link to="/">
+					<div className="font-light">epic</div>
+					<div className="font-bold">notes</div>
+				</Link>
+				<p>Built with ♥️ by {data.username}</p>
+			</div>
+			<div className="h-5" />
+			<script
+				dangerouslySetInnerHTML={{
+					__html: `window.ENV = ${JSON.stringify(data.ENV)}`,
+				}}
+			/>
+		</Document>
 	)
 }
 
@@ -86,4 +70,16 @@ export const meta: MetaFunction = () => {
 			content: 'A note taking app made during the Epic Web course',
 		},
 	]
+}
+
+export function ErrorBoundary() {
+	return (
+		<Document>
+			<GeneralErrorBoundary
+				statusHandlers={{
+					404: () => <p>This page wasn't found for some reason.</p>,
+				}}
+			/>
+		</Document>
+	)
 }

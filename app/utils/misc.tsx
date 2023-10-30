@@ -1,3 +1,4 @@
+import { useFormAction, useNavigation } from '@remix-run/react'
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -49,4 +50,25 @@ export function invariantResponse(
 			{ status: 400, ...responseInit },
 		)
 	}
+}
+/**
+ * Returns true if the current navigation is submitting the current route's
+ * form. Defaults to the current route's form action and method POST.
+ */
+export function useIsSubmitting({
+	formAction,
+	formMethod = 'POST',
+}: {
+	formAction?: string
+	formMethod?: 'POST' | 'GET' | 'PUT' | 'PATCH' | 'DELETE'
+} = {}) {
+	const contextualFormAction = useFormAction()
+	const navigation = useNavigation()
+	console.log(navigation, contextualFormAction)
+	return (
+		// returning true for any state except 'idle' will keep the pending state until component is reloaded.
+		navigation.state !== 'idle' &&
+		navigation.formAction === (formAction ?? contextualFormAction) &&
+		navigation.formMethod === formMethod
+	)
 }

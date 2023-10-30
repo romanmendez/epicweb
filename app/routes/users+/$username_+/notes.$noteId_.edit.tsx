@@ -17,7 +17,7 @@ import {
 } from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = db.note.findFirst({
@@ -129,6 +129,8 @@ export default function NoteEdit() {
 	const actionData = useActionData<typeof action>()
 	const data = useLoaderData<typeof loader>()
 	const isSubmitting = useIsSubmitting()
+	const titleInputId = useId()
+	const contentInputId = useId()
 	const formId = 'note-editor'
 
 	const fieldErrors =
@@ -148,8 +150,9 @@ export default function NoteEdit() {
 			>
 				<div className="flex flex-col gap-1">
 					<div>
-						<Label>Title</Label>
+						<Label htmlFor={titleInputId}>Title</Label>
 						<Input
+							id={titleInputId}
 							name="title"
 							defaultValue={data.note.title}
 							maxLength={titleMaxLength}
@@ -160,8 +163,9 @@ export default function NoteEdit() {
 						</div>
 					</div>
 					<div>
-						<Label>Content</Label>
+						<Label htmlFor={contentInputId}>Content</Label>
 						<Textarea
+							id={contentInputId}
 							name="content"
 							defaultValue={data.note.content}
 							maxLength={contentMaxLength}
@@ -185,7 +189,9 @@ export default function NoteEdit() {
 				>
 					{isSubmitting ? 'Submitting' : 'Submit'}
 				</StatusButton>
-				<Button type="reset">Reset</Button>
+				<Button type="reset" form={formId} variant="destructive">
+					Reset
+				</Button>
 			</div>
 		</div>
 	)

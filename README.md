@@ -40,6 +40,8 @@ import is that Remix will add a hash to the files we import and that will allow
 us to set the cache to be really long and any time we make any change to the
 file that hash will change and it will break the hash.
 
+![Full Stack Foundations Certificate](https://www.epicweb.dev/api/certificate?moduleId=deb1eeaf-7f3a-4dff-81a1-9f07826693c2&userId=c37b5fcf-6d84-4015-a924-fc1a7bbdd7a2)
+
 ## Professional Web Forms
 
 Working almost exclusively in out `notes.$noteId_.edit.tsx` file
@@ -55,7 +57,7 @@ the bottom of the field to say what the max is.
 ### Server Validation
 
 Here things get a little more complex. We create an errors object in our
-`actions` function in which we distinguish between `formErrors` and
+`actions` function in which we distinguish between `formErrors` andq
 `fieldErrors`:
 
 ```js

@@ -17,6 +17,7 @@ import {
 } from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { useEffect, useState } from 'react'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = db.note.findFirst({
@@ -118,6 +119,12 @@ function ErrorList({ errors }: { errors?: Array<string> | null }) {
 	) : null
 }
 
+function useHydrated() {
+	const [hydrated, setHydrated] = useState(false)
+	useEffect(() => setHydrated(true), [])
+	return hydrated
+}
+
 export default function NoteEdit() {
 	const actionData = useActionData<typeof action>()
 	const data = useLoaderData<typeof loader>()
@@ -129,12 +136,14 @@ export default function NoteEdit() {
 	const formErrors =
 		actionData?.status === 'error' ? actionData.errors.formErrors : null
 
+	const isHydrated = useHydrated()
+
 	return (
 		<div className="absolute inset-0">
 			<Form
 				method="POST"
 				className="flex h-full flex-col gap-y-4 overflow-x-hidden px-10 pb-28 pt-12"
-				noValidate
+				noValidate={isHydrated}
 				id={formId}
 			>
 				<div className="flex flex-col gap-1">

@@ -152,7 +152,7 @@ export default function NoteEdit() {
 						<Input
 							name="title"
 							defaultValue={data.note.title}
-							// maxLength={titleMaxLength}
+							maxLength={titleMaxLength}
 							required
 						/>
 						<div className="min-h-[32px] px-4 pb-3 pt-1">
@@ -164,7 +164,7 @@ export default function NoteEdit() {
 						<Textarea
 							name="content"
 							defaultValue={data.note.content}
-							// maxLength={contentMaxLength}
+							maxLength={contentMaxLength}
 							required
 						/>
 						<div className="min-h-[32px] px-4 pb-3 pt-1">

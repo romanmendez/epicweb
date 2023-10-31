@@ -107,9 +107,15 @@ export async function action({ request, params }: DataFunctionArgs) {
 	return redirect(`/users/${params.username}/notes/${params.noteId}`)
 }
 
-function ErrorList({ errors }: { errors?: Array<string> | null }) {
+function ErrorList({
+	errors,
+	id,
+}: {
+	errors?: Array<string> | null
+	id?: string
+}) {
 	return errors?.length ? (
-		<ul className="flex flex-col gap-1">
+		<ul className="flex flex-col gap-1" aria-aria-describedby={id}>
 			{errors.map((error, i) => (
 				<li key={i} className="text-foreground-danger text-[10px]">
 					{error}
@@ -137,8 +143,16 @@ export default function NoteEdit() {
 		actionData?.status === 'error' ? actionData.errors.fieldErrors : null
 	const formErrors =
 		actionData?.status === 'error' ? actionData.errors.formErrors : null
-
 	const isHydrated = useHydrated()
+
+	const formHasErrors = Boolean(formErrors?.length)
+	const formErrorId = formHasErrors ? 'form-error' : undefined
+	const titleHasErrors = Boolean(fieldErrors?.title.length)
+	const titleErrorId = titleHasErrors ? 'title-error' : undefined
+	const contentHasErrors = Boolean(fieldErrors?.content.length)
+	const contentErrorId = contentHasErrors ? 'content-error' : undefined
+
+	console.log(titleHasErrors, contentHasErrors, fieldErrors)
 
 	return (
 		<div className="absolute inset-0">
@@ -147,6 +161,8 @@ export default function NoteEdit() {
 				className="flex h-full flex-col gap-y-4 overflow-x-hidden px-10 pb-28 pt-12"
 				noValidate={isHydrated}
 				id={formId}
+				aria-invalid={formHasErrors || undefined}
+				aria-describedby={formErrorId}
 			>
 				<div className="flex flex-col gap-1">
 					<div>
@@ -157,9 +173,11 @@ export default function NoteEdit() {
 							defaultValue={data.note.title}
 							maxLength={titleMaxLength}
 							required
+							aria-invalid={titleHasErrors || undefined}
+							aria-describedby={titleErrorId}
 						/>
 						<div className="min-h-[32px] px-4 pb-3 pt-1">
-							<ErrorList errors={fieldErrors?.title} />
+							<ErrorList errors={fieldErrors?.title} id={titleErrorId} />
 						</div>
 					</div>
 					<div>
@@ -170,14 +188,16 @@ export default function NoteEdit() {
 							defaultValue={data.note.content}
 							maxLength={contentMaxLength}
 							required
+							aria-invalid={contentHasErrors || undefined}
+							aria-describedby={contentErrorId}
 						/>
 						<div className="min-h-[32px] px-4 pb-3 pt-1">
-							<ErrorList errors={fieldErrors?.content} />
+							<ErrorList errors={fieldErrors?.content} id={contentErrorId} />
 						</div>
 					</div>
 				</div>
 				<div className="min-h-[32px] px-4 pb-3 pt-1">
-					<ErrorList errors={formErrors} />
+					<ErrorList errors={formErrors} id={formErrorId} />
 				</div>
 			</Form>
 			<div className={floatingToolbarClassName}>

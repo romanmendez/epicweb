@@ -1,5 +1,8 @@
+import { useEffect, useId, useRef, useState } from 'react'
 import { json, type DataFunctionArgs, redirect } from '@remix-run/node'
 import { useLoaderData, Form, useActionData } from '@remix-run/react'
+import { z } from 'zod'
+import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { db, updateNote } from '#app/utils/db.server.ts'
 import {
 	invariantResponse,
@@ -15,8 +18,6 @@ import {
 } from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { useEffect, useId, useRef, useState } from 'react'
-import { z } from 'zod'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = db.note.findFirst({
@@ -34,12 +35,29 @@ export async function loader({ params }: DataFunctionArgs) {
 	})
 }
 
-const titleMaxLength = 100
+const titleMinLength = 5
+const titleMaxLength = 50
+const contentMinLength = 10
 const contentMaxLength = 1000
 
 const NoteEditorSchema = z.object({
-	title: z.string().min(5).max(titleMaxLength),
-	content: z.string().min(10).max(contentMaxLength),
+	title: z
+		.string({ required_error: 'Title is required' })
+		.min(
+			titleMinLength,
+			`Title must have a minimum of ${titleMinLength} characters`,
+		)
+		.max(
+			titleMaxLength,
+			`Title must be a maximum of ${titleMaxLength} characters`,
+		),
+	content: z
+		.string({ required_error: 'Title is required' })
+		.min(
+			contentMinLength,
+			`Content must have a minimum of ${contentMinLength} characters`,
+		)
+		.max(contentMaxLength),
 })
 
 export async function action({ request, params }: DataFunctionArgs) {
@@ -50,23 +68,20 @@ export async function action({ request, params }: DataFunctionArgs) {
 		return redirect(`/users/${params.username}/notes/${params.noteId}`)
 	}
 
-	const result = NoteEditorSchema.safeParse({
-		title: formData.get('title'),
-		content: formData.get('content'),
-	})
+	const submission = parse(formData, { schema: NoteEditorSchema })
 
-	if (!result.success) {
+	if (!submission.value) {
 		return json(
 			{
 				status: 'error',
-				errors: result.error.flatten(),
+				submission,
 				// 🦺 the as const is here to help with our TypeScript inference
 			} as const,
 			{ status: 400 },
 		)
 	}
 
-	const { title, content } = result.data
+	const { title, content } = submission.value
 
 	await updateNote({ id: params.noteId, title, content })
 	return redirect(`/users/${params.username}/notes/${params.noteId}`)
@@ -106,9 +121,9 @@ export default function NoteEdit() {
 	const formId = 'note-editor'
 
 	const fieldErrors =
-		actionData?.status === 'error' ? actionData.errors.fieldErrors : null
+		actionData?.status === 'error' ? actionData.submission.error : null
 	const formErrors =
-		actionData?.status === 'error' ? actionData.errors.formErrors : null
+		actionData?.status === 'error' ? actionData.submission.error[''] : null
 	const isHydrated = useHydrated()
 
 	useFocusInvalid(formRef.current, actionData?.status === 'error')
@@ -119,6 +134,15 @@ export default function NoteEdit() {
 	const titleErrorId = titleHasErrors ? 'title-error' : undefined
 	const contentHasErrors = Boolean(fieldErrors?.content?.length)
 	const contentErrorId = contentHasErrors ? 'content-error' : undefined
+
+	console.log(
+		'formHasErrors',
+		formHasErrors,
+		'titleHasErrors',
+		titleHasErrors,
+		'contentHasErrors',
+		contentHasErrors,
+	)
 
 	return (
 		<div className="absolute inset-0">

@@ -77,6 +77,7 @@ export function useFocusInvalid(
 	formEl: HTMLFormElement | null,
 	hasErrors: boolean,
 ) {
+	const errorNode = formEl?.querySelectorAll('[aria-invalid="true"]')
 	useEffect(() => {
 		if (!formEl) return
 		if (!hasErrors) return
@@ -86,5 +87,5 @@ export function useFocusInvalid(
 			const firstErrorElement = formEl.querySelector('[aria-invalid="true"]')
 			if (firstErrorElement instanceof HTMLElement) firstErrorElement.focus()
 		}
-	}, [hasErrors, formEl])
+	}, [hasErrors, formEl, errorNode])
 }

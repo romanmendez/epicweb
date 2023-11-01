@@ -2,7 +2,6 @@ import { useFormAction, useNavigation } from '@remix-run/react'
 import { type ClassValue, clsx } from 'clsx'
 import { useEffect } from 'react'
 import { twMerge } from 'tailwind-merge'
-import { ActionErrors } from './types.ts'
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs))
@@ -66,7 +65,6 @@ export function useIsSubmitting({
 } = {}) {
 	const contextualFormAction = useFormAction()
 	const navigation = useNavigation()
-	console.log(navigation, contextualFormAction)
 	return (
 		// returning true for any state except 'idle' will keep the pending state until component is reloaded.
 		navigation.state !== 'idle' &&
@@ -88,5 +86,5 @@ export function useFocusInvalid(
 			const firstErrorElement = formEl.querySelector('[aria-invalid="true"]')
 			if (firstErrorElement instanceof HTMLElement) firstErrorElement.focus()
 		}
-	}, [hasErrors])
+	}, [hasErrors, formEl])
 }

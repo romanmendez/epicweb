@@ -1,12 +1,6 @@
 import { json, type DataFunctionArgs, redirect } from '@remix-run/node'
-import {
-	useLoaderData,
-	Form,
-	useNavigation,
-	useFormAction,
-	useActionData,
-} from '@remix-run/react'
-import { db } from '#app/utils/db.server.ts'
+import { useLoaderData, Form, useActionData } from '@remix-run/react'
+import { db, updateNote } from '#app/utils/db.server.ts'
 import {
 	invariantResponse,
 	useFocusInvalid,
@@ -21,8 +15,8 @@ import {
 } from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { ActionErrors } from '#app/utils/types.ts'
 import { useEffect, useId, useRef, useState } from 'react'
+import { z } from 'zod'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = db.note.findFirst({
@@ -43,64 +37,38 @@ export async function loader({ params }: DataFunctionArgs) {
 const titleMaxLength = 100
 const contentMaxLength = 1000
 
+const NoteEditorSchema = z.object({
+	title: z.string().min(5).max(titleMaxLength),
+	content: z.string().min(10).max(contentMaxLength),
+})
+
 export async function action({ request, params }: DataFunctionArgs) {
+	invariantResponse(params.noteId, 'Not a valid note Id')
 	const formData = await request.formData()
-	const title = formData.get('title')
-	const content = formData.get('content')
 
-	invariantResponse(typeof title === 'string', 'Invalid title')
-	invariantResponse(typeof content === 'string', 'Invalid title')
-
-	const errors: ActionErrors = {
-		formErrors: [],
-		fieldErrors: {
-			title: [],
-			content: [],
-		},
+	if (formData.get('intent') === 'cancel') {
+		return redirect(`/users/${params.username}/notes/${params.noteId}`)
 	}
 
-	if (title.length > titleMaxLength)
-		errors.fieldErrors.title.push('Title is too long.')
-	if (title === '')
-		errors.fieldErrors.title.push(
-			`Title must not exceed ${titleMaxLength} characters.`,
-		)
-	if (content.length > contentMaxLength)
-		errors.fieldErrors.content.push(
-			`Content must not exceed ${contentMaxLength} characters.`,
-		)
-	if (content === '')
-		errors.fieldErrors.content.push('You need to provide some text here.')
+	const result = NoteEditorSchema.safeParse({
+		title: formData.get('title'),
+		content: formData.get('content'),
+	})
 
-	const contentIncludesTitleWord = title
-		.toLocaleLowerCase()
-		.split(' ')
-		.some(word => content.toLocaleLowerCase().includes(word))
-
-	if (!contentIncludesTitleWord)
-		errors.formErrors.push(
-			'The content body must contain mention of at least 1 word in the title.',
-		)
-
-	const hasErrors =
-		errors.formErrors.length ||
-		Object.values(errors.fieldErrors).some(fieldErrors => fieldErrors.length)
-
-	if (hasErrors) {
+	if (!result.success) {
 		return json(
 			{
 				status: 'error',
-				errors,
+				errors: result.error.flatten(),
 				// 🦺 the as const is here to help with our TypeScript inference
 			} as const,
 			{ status: 400 },
 		)
 	}
 
-	db.note.update({
-		where: { id: { equals: params.noteId } },
-		data: { title, content },
-	})
+	const { title, content } = result.data
+
+	await updateNote({ id: params.noteId, title, content })
 	return redirect(`/users/${params.username}/notes/${params.noteId}`)
 }
 
@@ -141,16 +109,15 @@ export default function NoteEdit() {
 		actionData?.status === 'error' ? actionData.errors.fieldErrors : null
 	const formErrors =
 		actionData?.status === 'error' ? actionData.errors.formErrors : null
-	const hasErrors = Boolean(actionData)
 	const isHydrated = useHydrated()
 
-	useFocusInvalid(formRef.current, hasErrors)
+	useFocusInvalid(formRef.current, actionData?.status === 'error')
 
 	const formHasErrors = Boolean(formErrors?.length)
 	const formErrorId = formHasErrors ? 'form-error' : undefined
-	const titleHasErrors = Boolean(fieldErrors?.title.length)
+	const titleHasErrors = Boolean(fieldErrors?.title?.length)
 	const titleErrorId = titleHasErrors ? 'title-error' : undefined
-	const contentHasErrors = Boolean(fieldErrors?.content.length)
+	const contentHasErrors = Boolean(fieldErrors?.content?.length)
 	const contentErrorId = contentHasErrors ? 'content-error' : undefined
 
 	return (
@@ -176,6 +143,7 @@ export default function NoteEdit() {
 							required
 							aria-invalid={titleHasErrors || undefined}
 							aria-describedby={titleErrorId}
+							autoFocus
 						/>
 						<div className="min-h-[32px] px-4 pb-3 pt-1">
 							<ErrorList errors={fieldErrors?.title} id={titleErrorId} />
@@ -207,11 +175,19 @@ export default function NoteEdit() {
 					disabled={isSubmitting}
 					status={isSubmitting ? 'pending' : 'idle'}
 					form={formId}
+					name="intent"
+					value="edit"
 				>
 					{isSubmitting ? 'Submitting' : 'Submit'}
 				</StatusButton>
-				<Button type="reset" form={formId} variant="destructive">
-					Reset
+				<Button
+					type="submit"
+					form={formId}
+					variant="destructive"
+					name="intent"
+					value="cancel"
+				>
+					Cancel
 				</Button>
 			</div>
 		</div>

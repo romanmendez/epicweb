@@ -1,6 +1,8 @@
 import { useFormAction, useNavigation } from '@remix-run/react'
 import { type ClassValue, clsx } from 'clsx'
+import { useEffect } from 'react'
 import { twMerge } from 'tailwind-merge'
+import { ActionErrors } from './types.ts'
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs))
@@ -71,4 +73,20 @@ export function useIsSubmitting({
 		navigation.formAction === (formAction ?? contextualFormAction) &&
 		navigation.formMethod === formMethod
 	)
+}
+
+export function useFocusInvalid(
+	formEl: HTMLFormElement | null,
+	hasErrors: boolean,
+) {
+	useEffect(() => {
+		if (!formEl) return
+		if (!hasErrors) return
+		if (formEl.matches('[aria-invalid="true"]')) {
+			formEl.focus()
+		} else {
+			const firstErrorElement = formEl.querySelector('[aria-invalid="true"]')
+			if (firstErrorElement instanceof HTMLElement) firstErrorElement.focus()
+		}
+	}, [hasErrors])
 }

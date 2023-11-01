@@ -7,7 +7,11 @@ import {
 	useActionData,
 } from '@remix-run/react'
 import { db } from '#app/utils/db.server.ts'
-import { invariantResponse, useIsSubmitting } from '#app/utils/misc.tsx'
+import {
+	invariantResponse,
+	useFocusInvalid,
+	useIsSubmitting,
+} from '#app/utils/misc.tsx'
 import {
 	Button,
 	Label,
@@ -17,7 +21,8 @@ import {
 } from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { useEffect, useId, useState } from 'react'
+import { ActionErrors } from '#app/utils/types.ts'
+import { useEffect, useId, useRef, useState } from 'react'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = db.note.findFirst({
@@ -33,14 +38,6 @@ export async function loader({ params }: DataFunctionArgs) {
 	return json({
 		note: { title: note.title, content: note.content },
 	})
-}
-
-type ActionErrors = {
-	formErrors: Array<string>
-	fieldErrors: {
-		title: Array<string>
-		content: Array<string>
-	}
 }
 
 const titleMaxLength = 100
@@ -132,6 +129,7 @@ function useHydrated() {
 }
 
 export default function NoteEdit() {
+	const formRef = useRef<HTMLFormElement>(null)
 	const actionData = useActionData<typeof action>()
 	const data = useLoaderData<typeof loader>()
 	const isSubmitting = useIsSubmitting()
@@ -143,7 +141,10 @@ export default function NoteEdit() {
 		actionData?.status === 'error' ? actionData.errors.fieldErrors : null
 	const formErrors =
 		actionData?.status === 'error' ? actionData.errors.formErrors : null
+	const hasErrors = Boolean(actionData)
 	const isHydrated = useHydrated()
+
+	useFocusInvalid(formRef.current, hasErrors)
 
 	const formHasErrors = Boolean(formErrors?.length)
 	const formErrorId = formHasErrors ? 'form-error' : undefined
@@ -151,8 +152,6 @@ export default function NoteEdit() {
 	const titleErrorId = titleHasErrors ? 'title-error' : undefined
 	const contentHasErrors = Boolean(fieldErrors?.content.length)
 	const contentErrorId = contentHasErrors ? 'content-error' : undefined
-
-	console.log(titleHasErrors, contentHasErrors, fieldErrors)
 
 	return (
 		<div className="absolute inset-0">
@@ -163,6 +162,8 @@ export default function NoteEdit() {
 				id={formId}
 				aria-invalid={formHasErrors || undefined}
 				aria-describedby={formErrorId}
+				ref={formRef}
+				tabIndex={-1}
 			>
 				<div className="flex flex-col gap-1">
 					<div>

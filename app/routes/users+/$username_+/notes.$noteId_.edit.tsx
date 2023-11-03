@@ -4,7 +4,7 @@ import {
 	type DataFunctionArgs,
 	redirect,
 	unstable_parseMultipartFormData as parseMultipartFormData,
-	unstable_createFileUploadHandler as createMemoryUploadHandler,
+	unstable_createMemoryUploadHandler as createMemoryUploadHandler,
 } from '@remix-run/node'
 import { Form, useActionData, useLoaderData } from '@remix-run/react'
 import { z } from 'zod'
@@ -137,9 +137,9 @@ export default function NoteEdit() {
 		id: 'login-form',
 		constraint: getFieldsetConstraint(NoteEditorSchema),
 		lastSubmission: actionData?.submission,
-		onValidate({ formData }) {
-			return parse(formData, { schema: NoteEditorSchema })
-		},
+		// onValidate({ formData }) {
+		// 	return parse(formData, { schema: NoteEditorSchema })
+		// },
 		defaultValue: {
 			title: note.title,
 			content: note.content,

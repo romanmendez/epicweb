@@ -42,7 +42,8 @@ export async function loader({ params }: DataFunctionArgs) {
 	})
 }
 
-const MAX_UPLOAD_SIZE = 1024 * 1024 * 3 // 5MB
+const MAX_UPLOAD_SIZE = 1024 * 1024 * 3 // 3MB
+
 const titleMinLength = 5
 const titleMaxLength = 50
 const contentMinLength = 10
@@ -66,16 +67,14 @@ const NoteEditorSchema = z.object({
 			`Content must have a minimum of ${contentMinLength} characters`,
 		)
 		.max(contentMaxLength),
-	images: z.object({
-		id: z.string().optional(),
-		file: z
-			.instanceof(File)
-			.refine(
-				file => file.size < MAX_UPLOAD_SIZE,
-				'File is too large. Max size is 5MB',
-			),
-		altText: z.string().optional(),
-	}),
+	imageId: z.string().optional(),
+	file: z
+		.instanceof(File)
+		.refine(
+			file => file.size < MAX_UPLOAD_SIZE,
+			'File is too large. Max size is 5MB',
+		),
+	altText: z.string().optional(),
 })
 
 export async function action({ request, params }: DataFunctionArgs) {
@@ -101,16 +100,16 @@ export async function action({ request, params }: DataFunctionArgs) {
 		)
 	}
 
-	const { title, content, images } = submission.value
+	const { title, content, imageId, file, altText } = submission.value
 	await updateNote({
 		id: params.noteId,
 		title,
 		content,
 		images: [
 			{
-				id: images.id,
-				file: images.file,
-				altText: images.altText,
+				id: imageId,
+				file,
+				altText,
 			},
 		],
 	})
@@ -180,6 +179,9 @@ export default function NoteEdit() {
 					<div>
 						<Label>Image</Label>
 						<ImageChooser image={note.images[0]} />
+						<div className="min-h-[32px] px-4 pb-3 pt-1">
+							<ErrorList errors={fields.file.errors} id={fields.file.id} />
+						</div>
 					</div>
 				</div>
 				<div className="min-h-[32px] px-4 pb-3 pt-1">

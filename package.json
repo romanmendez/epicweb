@@ -12,7 +12,8 @@
     "build:server": "tsx ./other/build-server.ts",
     "dev": "remix dev --manual -c \"node ./server/dev-server.js\"",
     "test": "playwright test",
-    "start": "remix-serve build/index.js",
+    "serve": "remix-serve build/index.js",
+    "start": "run-s build serve",
     "lint": "eslint .",
     "typecheck": "tsc"
   },

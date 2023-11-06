@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
 	json,
 	type DataFunctionArgs,
@@ -9,7 +9,12 @@ import {
 import { Form, useActionData, useLoaderData } from '@remix-run/react'
 import { z } from 'zod'
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
-import { conform, useForm } from '@conform-to/react'
+import {
+	conform,
+	useForm,
+	useFieldset,
+	type FieldConfig,
+} from '@conform-to/react'
 import { db, updateNote } from '#app/utils/db.server.ts'
 import { cn, invariantResponse, useIsSubmitting } from '#app/utils/misc.tsx'
 import {
@@ -49,6 +54,18 @@ const titleMaxLength = 50
 const contentMinLength = 10
 const contentMaxLength = 1000
 
+const ImageFieldsetSchema = z.object({
+	id: z.string().optional(),
+	file: z
+		.instanceof(File)
+		.refine(
+			file => file.size < MAX_UPLOAD_SIZE,
+			'File is too large. Max size is 5MB',
+		)
+		.optional(),
+	altText: z.string(),
+})
+
 const NoteEditorSchema = z.object({
 	title: z
 		.string({ required_error: 'Title is required' })
@@ -67,14 +84,7 @@ const NoteEditorSchema = z.object({
 			`Content must have a minimum of ${contentMinLength} characters`,
 		)
 		.max(contentMaxLength),
-	imageId: z.string().optional(),
-	file: z
-		.instanceof(File)
-		.refine(
-			file => file.size < MAX_UPLOAD_SIZE,
-			'File is too large. Max size is 5MB',
-		),
-	altText: z.string().optional(),
+	image: ImageFieldsetSchema,
 })
 
 export async function action({ request, params }: DataFunctionArgs) {
@@ -99,19 +109,12 @@ export async function action({ request, params }: DataFunctionArgs) {
 			{ status: 400 },
 		)
 	}
-
-	const { title, content, imageId, file, altText } = submission.value
+	const { title, content, image } = submission.value
 	await updateNote({
 		id: params.noteId,
 		title,
 		content,
-		images: [
-			{
-				id: imageId,
-				file,
-				altText,
-			},
-		],
+		images: [image],
 	})
 	return redirect(`/users/${params.username}/notes/${params.noteId}`)
 }
@@ -148,6 +151,7 @@ export default function NoteEdit() {
 		defaultValue: {
 			title: note.title,
 			content: note.content,
+			image: note.images[0],
 		},
 	})
 	return (
@@ -178,10 +182,7 @@ export default function NoteEdit() {
 					</div>
 					<div>
 						<Label>Image</Label>
-						<ImageChooser image={note.images[0]} />
-						<div className="min-h-[32px] px-4 pb-3 pt-1">
-							<ErrorList errors={fields.file.errors} id={fields.file.id} />
-						</div>
+						<ImageChooser config={fields.image} />
 					</div>
 				</div>
 				<div className="min-h-[32px] px-4 pb-3 pt-1">
@@ -214,23 +215,24 @@ export default function NoteEdit() {
 }
 
 function ImageChooser({
-	image,
+	config,
 }: {
-	image?: { id: string; altText?: string | null }
+	config: FieldConfig<z.infer<typeof ImageFieldsetSchema>>
 }) {
-	const existingImage = Boolean(image)
+	const ref = useRef<HTMLFieldSetElement>(null)
+	const fields = useFieldset(ref, config)
+	const existingImage = Boolean(fields.id.defaultValue)
 	const [previewImage, setPreviewImage] = useState<string | null>(
-		existingImage ? `/resources/images/${image?.id}` : null,
+		existingImage ? `/resources/images/${fields.id.defaultValue}` : null,
 	)
-	const [altText, setAltText] = useState(image?.altText ?? '')
-
+	const [altText, setAltText] = useState(fields.altText.defaultValue ?? '')
 	return (
-		<fieldset>
+		<fieldset ref={ref}>
 			<div className="flex gap-3">
 				<div className="w-32">
 					<div className="relative h-32 w-32">
 						<label
-							htmlFor="image-input"
+							htmlFor={fields.id.id}
 							className={cn('group absolute h-32 w-32 rounded-lg', {
 								'bg-accent opacity-40 focus-within:opacity-100 hover:opacity-100':
 									!previewImage,
@@ -256,11 +258,11 @@ function ImageChooser({
 								</div>
 							)}
 							{existingImage ? (
-								<input type="hidden" name="imageId" value={image?.id} />
+								<input {...conform.input(fields.id, { type: 'hidden' })} />
 							) : null}
 							<input
-								id="image-input"
-								aria-label="Image"
+								{...conform.input(fields.file, { type: 'file' })}
+								accept="image/*"
 								className="absolute left-0 top-0 z-0 h-32 w-32 cursor-pointer opacity-0"
 								onChange={event => {
 									const file = event.target.files?.[0]
@@ -275,22 +277,26 @@ function ImageChooser({
 										setPreviewImage(null)
 									}
 								}}
-								name="file"
-								type="file"
-								accept="image/*"
 							/>
 						</label>
 					</div>
+					<div className="min-h-[32px] px-4 pb-3 pt-1">
+						<ErrorList errors={fields.file.errors} id={fields.file.id} />
+					</div>
 				</div>
 				<div className="flex-1">
-					<Label htmlFor="alt-text">Alt Text</Label>
+					<Label htmlFor={fields.altText.id}>Alt Text</Label>
 					<Textarea
-						id="alt-text"
-						name="alt-text"
-						defaultValue={altText}
+						{...conform.textarea(fields.altText)}
 						onChange={e => setAltText(e.currentTarget.value)}
 					/>
+					<div className="min-h-[32px] px-4 pb-3 pt-1">
+						<ErrorList errors={fields.altText.errors} id={fields.altText.id} />
+					</div>
 				</div>
+			</div>
+			<div className="min-h-[32px] px-4 pb-3 pt-1">
+				<ErrorList id={config.errorId} errors={config.errors} />
 			</div>
 		</fieldset>
 	)

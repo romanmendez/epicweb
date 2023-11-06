@@ -14,6 +14,7 @@ import {
 	useForm,
 	useFieldset,
 	type FieldConfig,
+	useFieldList,
 } from '@conform-to/react'
 import { db, updateNote } from '#app/utils/db.server.ts'
 import { cn, invariantResponse, useIsSubmitting } from '#app/utils/misc.tsx'
@@ -84,7 +85,7 @@ const NoteEditorSchema = z.object({
 			`Content must have a minimum of ${contentMinLength} characters`,
 		)
 		.max(contentMaxLength),
-	image: ImageFieldsetSchema,
+	images: z.array(ImageFieldsetSchema),
 })
 
 export async function action({ request, params }: DataFunctionArgs) {
@@ -109,12 +110,12 @@ export async function action({ request, params }: DataFunctionArgs) {
 			{ status: 400 },
 		)
 	}
-	const { title, content, image } = submission.value
+	const { title, content, images } = submission.value
 	await updateNote({
 		id: params.noteId,
 		title,
 		content,
-		images: [image],
+		images: images,
 	})
 	return redirect(`/users/${params.username}/notes/${params.noteId}`)
 }
@@ -151,9 +152,11 @@ export default function NoteEdit() {
 		defaultValue: {
 			title: note.title,
 			content: note.content,
-			image: note.images[0],
+			images: note.images,
 		},
 	})
+	const images = useFieldList(form.ref, fields.images)
+
 	return (
 		<div className="absolute inset-0">
 			<Form
@@ -181,8 +184,12 @@ export default function NoteEdit() {
 						</div>
 					</div>
 					<div>
-						<Label>Image</Label>
-						<ImageChooser config={fields.image} />
+						<Label>Images</Label>
+						<ul className="flex flex-col gap-4">
+							{images.map(image => (
+								<ImageChooser key={image.key} config={image} />
+							))}
+						</ul>
 					</div>
 				</div>
 				<div className="min-h-[32px] px-4 pb-3 pt-1">

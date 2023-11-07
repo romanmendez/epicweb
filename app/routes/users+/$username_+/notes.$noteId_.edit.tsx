@@ -15,6 +15,7 @@ import {
 	useFieldset,
 	type FieldConfig,
 	useFieldList,
+	list,
 } from '@conform-to/react'
 import { db, updateNote } from '#app/utils/db.server.ts'
 import { cn, invariantResponse, useIsSubmitting } from '#app/utils/misc.tsx'
@@ -64,7 +65,7 @@ const ImageFieldsetSchema = z.object({
 			'File is too large. Max size is 5MB',
 		)
 		.optional(),
-	altText: z.string(),
+	altText: z.string().optional(),
 })
 
 const NoteEditorSchema = z.object({
@@ -100,6 +101,10 @@ export async function action({ request, params }: DataFunctionArgs) {
 		return redirect(`/users/${params.username}/notes/${params.noteId}`)
 	}
 	const submission = parse(formData, { schema: NoteEditorSchema })
+
+	if (formData.get('intent') !== 'submit') {
+		return json({ status: 'idle', submission } as const)
+	}
 
 	if (!submission.value) {
 		return json(
@@ -152,7 +157,7 @@ export default function NoteEdit() {
 		defaultValue: {
 			title: note.title,
 			content: note.content,
-			images: note.images,
+			images: note.images.length ? note.images : [{}],
 		},
 	})
 	const images = useFieldList(form.ref, fields.images)
@@ -165,6 +170,7 @@ export default function NoteEdit() {
 				encType="multipart/form-data"
 				{...form.props}
 			>
+				<button type="submit" className="hidden" name="intent" value="submit" />
 				<div className="flex flex-col gap-1">
 					<div>
 						<Label htmlFor={fields.title.id}>Title</Label>
@@ -186,9 +192,29 @@ export default function NoteEdit() {
 					<div>
 						<Label>Images</Label>
 						<ul className="flex flex-col gap-4">
-							{images.map(image => (
-								<ImageChooser key={image.key} config={image} />
-							))}
+							{images.map((image, index) => {
+								return (
+									<li
+										key={image.key}
+										className="relative border-b-2 border-muted-foreground"
+									>
+										<ImageChooser config={image} />
+										<button
+											className="text-foreground-destructive absolute right-0 top-0"
+											{...list.remove(fields.images.name, { index })}
+										>
+											<span className="sr-only">Remove image {index + 1}</span>
+											<span aria-hidden="true">❌</span>
+										</button>
+									</li>
+								)
+							})}
+							<Button
+								{...list.insert(fields.images.name, { defaultValue: {} })}
+							>
+								<span className="sr-only">Add image</span>
+								<span aria-hidden="true">Add ➕</span>
+							</Button>
 						</ul>
 					</div>
 				</div>
@@ -203,7 +229,7 @@ export default function NoteEdit() {
 					status={isSubmitting ? 'pending' : 'idle'}
 					form={form.id}
 					name="intent"
-					value="edit"
+					value="submit"
 				>
 					{isSubmitting ? 'Submitting' : 'Submit'}
 				</StatusButton>

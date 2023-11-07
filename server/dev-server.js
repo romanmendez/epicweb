@@ -3,6 +3,7 @@ import { execa } from 'execa'
 if (process.env.NODE_ENV === 'production') {
 	await import('./index.js')
 } else {
+	console.log('developement')
 	const command =
 		'tsx watch --clear-screen=false --ignore "app/**" --ignore "build/**" --ignore "node_modules/**" --inspect ./index.js'
 	execa(command, {

@@ -4,14 +4,24 @@ import {
 	type MetaFunction,
 } from '@remix-run/node'
 import { Form } from '@remix-run/react'
+import { SpamError } from 'remix-utils/honeypot/server'
 import { Button } from '#app/components/ui/button.tsx'
 import { Input } from '#app/components/ui/input.tsx'
 import { Label } from '#app/components/ui/label.tsx'
-import { invariantResponse } from '#app/utils/misc.tsx'
+import { honeypot } from '#app/utils/honeypot.server.ts'
+import { HoneypotInputs } from 'remix-utils/honeypot/react'
 
 export async function action({ request }: DataFunctionArgs) {
 	const formData = await request.formData()
-	invariantResponse(formData.get('name') === '', 'Form not submitted properly')
+	console.log(formData.get('name__confirm_wrap'))
+	try {
+		honeypot.check(formData)
+	} catch (error) {
+		if (error instanceof SpamError) {
+			throw new Response('Invalid form submission', { status: 400 })
+		}
+		throw error
+	}
 
 	return redirect('/')
 }
@@ -30,10 +40,7 @@ export default function SignupRoute() {
 					method="POST"
 					className="mx-auto flex min-w-[368px] max-w-sm flex-col gap-4"
 				>
-					<div hidden aria-hidden="true">
-						<label htmlFor="name">Do not fill this out</label>
-						<input id="name" name="name" />
-					</div>
+					<HoneypotInputs />
 					<div>
 						<Label htmlFor="email-input">Email</Label>
 						<Input autoFocus id="email-input" name="email" type="email" />

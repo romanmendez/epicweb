@@ -13,6 +13,8 @@ import tailwindStylesheetUrl from '#app/styles/tailwind.css'
 import { getEnv } from '#app/utils/env.server.ts'
 import { Document } from '#app/components/document.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { honeypot } from './utils/honeypot.server.ts'
+import { HoneypotProvider } from 'remix-utils/honeypot/react'
 
 export const links: LinksFunction = () => {
 	return [
@@ -24,10 +26,15 @@ export const links: LinksFunction = () => {
 }
 
 export async function loader() {
-	return json({ username: os.userInfo().username, ENV: getEnv() })
+  console.log(honeypot.getInputProps())
+	return json({
+		username: os.userInfo().username,
+		ENV: getEnv(),
+		honeypotProps: honeypot.getInputProps(),
+	})
 }
 
-export default function App() {
+export function App() {
 	const data = useLoaderData<typeof loader>()
 	return (
 		<Document>
@@ -59,6 +66,15 @@ export default function App() {
 				}}
 			/>
 		</Document>
+	)
+}
+
+export default function AppWithProviders() {
+	const data = useLoaderData<typeof loader>()
+	return (
+		<HoneypotProvider {...data.honeypotProps}>
+			<App />
+		</HoneypotProvider>
 	)
 }
 

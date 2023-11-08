@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const schema = z.object({
 	NODE_ENV: z.enum(['production', 'development', 'test'] as const),
+	HONEYPOT_SECRET: z.string(),
 })
 
 declare global {
@@ -12,7 +13,6 @@ declare global {
 
 export function init() {
 	const parsed = schema.safeParse(process.env)
-
 	if (parsed.success === false) {
 		console.error(
 			'❌ Invalid environment variables:',
@@ -35,6 +35,7 @@ export function init() {
 export function getEnv() {
 	return {
 		MODE: process.env.NODE_ENV,
+		HONEYPOT_SECRET: process.env.HONEYPOT_SECRET,
 	}
 }
 

@@ -13,7 +13,6 @@ import { HoneypotInputs } from 'remix-utils/honeypot/react'
 
 export async function action({ request }: DataFunctionArgs) {
 	const formData = await request.formData()
-	console.log(formData.get('name__confirm_wrap'))
 	try {
 		honeypot.check(formData)
 	} catch (error) {

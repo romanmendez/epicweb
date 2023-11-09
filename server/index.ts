@@ -10,6 +10,7 @@ import compression from 'compression'
 import express from 'express'
 import getPort, { portNumbers } from 'get-port'
 import morgan from 'morgan'
+import { rateLimit } from 'express-rate-limit'
 
 const MODE = process.env.NODE_ENV
 const BUILD_PATH = '../build/index.js'
@@ -82,6 +83,18 @@ function getRequestHandler(build: ServerBuild): RequestHandler {
 	}
 	return createRequestHandler({ build, mode: MODE, getLoadContext })
 }
+
+// place the rate limiter right before we start doing the more intensive Remix serving.
+const maxMultiple = process.env.TESTING ? 10_000 : 1
+app.use(
+	rateLimit({
+		windowMs: 15 * 60 * 1000, // 15 minutes
+		limit: 100 * maxMultiple, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+		standardHeaders: true, // Use standard draft-6 headers of `RateLimit-Policy` `RateLimit-Limit`, and `RateLimit-Remaining`
+		legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+		// store: ... , // Use an external store for more precise rate limiting
+	}),
+)
 
 app.all(
 	'*',

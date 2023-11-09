@@ -6,6 +6,9 @@ import { invariantResponse } from '#app/utils/misc.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { loader as notesLoader } from './notes.tsx'
+import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
+import { csrf, validateCSRFToken } from '#app/utils/csrf.server.ts'
+import { CSRFError } from 'remix-utils/csrf/server'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { noteId } = params
@@ -21,6 +24,8 @@ export async function loader({ params }: DataFunctionArgs) {
 export async function action({ params, request }: DataFunctionArgs) {
 	const formData = await request.formData()
 	const intent = formData.get('intent')
+
+	await validateCSRFToken(formData, request.headers)
 
 	if (intent === 'delete') {
 		db.note.delete({ where: { id: { equals: params.noteId } } })
@@ -53,6 +58,7 @@ export default function SomeNoteId() {
 			</div>
 			<div className={floatingToolbarClassName}>
 				<Form method="POST">
+					<AuthenticityTokenInput />
 					<Button
 						type="submit"
 						variant="destructive"

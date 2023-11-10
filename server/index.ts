@@ -86,15 +86,35 @@ function getRequestHandler(build: ServerBuild): RequestHandler {
 
 // place the rate limiter right before we start doing the more intensive Remix serving.
 const maxMultiple = process.env.TESTING ? 10_000 : 1
-app.use(
-	rateLimit({
-		windowMs: 15 * 60 * 1000, // 15 minutes
-		limit: 100 * maxMultiple, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
-		standardHeaders: true, // Use standard draft-6 headers of `RateLimit-Policy` `RateLimit-Limit`, and `RateLimit-Remaining`
-		legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-		// store: ... , // Use an external store for more precise rate limiting
-	}),
-)
+
+const defaultRateLimit = {
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	limit: 1000 * maxMultiple, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+	standardHeaders: true, // Use standard draft-6 headers of `RateLimit-Policy` `RateLimit-Limit`, and `RateLimit-Remaining`
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+	// store: ... , // Use an external store for more precise rate limiting
+}
+const generalRateLimit = rateLimit({
+	...defaultRateLimit,
+})
+const strongRateLimit = rateLimit({
+	...defaultRateLimit,
+	limit: 100 * maxMultiple,
+})
+const strongestRateLimit = rateLimit({
+	limit: 10 * maxMultiple,
+})
+
+app.use((req, res, next) => {
+	const strongPaths = ['/signup']
+	if (req.method !== 'GET' && req.method !== 'HEAD') {
+		if (strongPaths.some(path => req.path.includes(path))) {
+			return strongestRateLimit(req, res, next)
+		}
+		return strongRateLimit(req, res, next)
+	}
+	return generalRateLimit(req, res, next)
+})
 
 app.all(
 	'*',

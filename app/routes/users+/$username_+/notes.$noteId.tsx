@@ -7,8 +7,7 @@ import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { loader as notesLoader } from './notes.tsx'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
-import { csrf, validateCSRFToken } from '#app/utils/csrf.server.ts'
-import { CSRFError } from 'remix-utils/csrf/server'
+import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { noteId } = params

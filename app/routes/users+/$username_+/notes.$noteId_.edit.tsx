@@ -28,6 +28,8 @@ import {
 } from '#app/components/ui/index.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
+import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = db.note.findFirst({
@@ -96,6 +98,7 @@ export async function action({ request, params }: DataFunctionArgs) {
 		maxPartSize: MAX_UPLOAD_SIZE,
 	})
 	const formData = await parseMultipartFormData(request, uploadHandler)
+	await validateCSRFToken(formData, request.headers)
 
 	if (formData.get('intent') === 'cancel') {
 		return redirect(`/users/${params.username}/notes/${params.noteId}`)
@@ -170,6 +173,7 @@ export default function NoteEdit() {
 				encType="multipart/form-data"
 				{...form.props}
 			>
+				<AuthenticityTokenInput />
 				<button type="submit" className="hidden" name="intent" value="submit" />
 				<div className="flex flex-col gap-1">
 					<div>

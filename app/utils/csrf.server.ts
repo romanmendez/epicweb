@@ -1,5 +1,4 @@
 import { createCookie } from '@remix-run/node'
-import { functions } from 'lodash'
 import { CSRF, CSRFError } from 'remix-utils/csrf/server'
 
 const cookie = createCookie('csrf', {

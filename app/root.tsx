@@ -1,22 +1,26 @@
 import os from 'node:os'
 import { cssBundleHref } from '@remix-run/css-bundle'
-import { DataFunctionArgs, json, type LinksFunction } from '@remix-run/node'
+import {
+	type DataFunctionArgs,
+	json,
+	type LinksFunction,
+} from '@remix-run/node'
 import {
 	Link,
 	Outlet,
 	useLoaderData,
 	type MetaFunction,
 } from '@remix-run/react'
+import { csrf } from './utils/csrf.server.ts'
+import { HoneypotProvider } from 'remix-utils/honeypot/react'
+import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 import faviconAssetUrl from '#app/assets/favicon.svg'
+import { Document } from '#app/components/document.tsx'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import fontStylestylesheetUrl from '#app/styles/font.css'
 import tailwindStylesheetUrl from '#app/styles/tailwind.css'
 import { getEnv } from '#app/utils/env.server.ts'
-import { Document } from '#app/components/document.tsx'
-import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { honeypot } from './utils/honeypot.server.ts'
-import { HoneypotProvider } from 'remix-utils/honeypot/react'
-import { csrf } from './utils/csrf.server.ts'
-import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 
 export const links: LinksFunction = () => {
 	return [
@@ -56,8 +60,8 @@ export function App() {
 						<div className="font-light">epic</div>
 						<div className="font-bold">notes</div>
 					</Link>
-					<Link className="underline" to="users/kody">
-						Kody
+					<Link className="underline" to="/signup">
+						Sign Up
 					</Link>
 				</nav>
 			</header>

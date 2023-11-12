@@ -1,10 +1,8 @@
 import { type DataFunctionArgs, json } from '@remix-run/node'
 import { Outlet, Link, NavLink, useLoaderData } from '@remix-run/react'
-import { useParams } from '@remix-run/react'
 import { cn, invariantResponse } from '#app/utils/misc.tsx'
 import { db } from '#app/utils/db.server.ts'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import _ from 'lodash'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { username } = params

@@ -1,17 +1,8 @@
-import {
-	Link,
-	useLoaderData,
-	useParams,
-	useRouteError,
-	type MetaFunction,
-	type ErrorResponse,
-	isRouteErrorResponse,
-} from '@remix-run/react'
+import { Link, useLoaderData, type MetaFunction } from '@remix-run/react'
 import { type DataFunctionArgs, json } from '@remix-run/node'
 import { db } from '#app/utils/db.server.ts'
-import { invariantResponse, getErrorMessage } from '#app/utils/misc.tsx'
+import { invariantResponse } from '#app/utils/misc.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import _ from 'lodash'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { username } = params
@@ -30,7 +21,7 @@ export async function loader({ params }: DataFunctionArgs) {
 	})
 }
 
-export default function profileRoute() {
+export default function ProfileRoute() {
 	const { user } = useLoaderData<typeof loader>()
 	return (
 		<div className="container mb-48 mt-36 border-4 border-green-500">

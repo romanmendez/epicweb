@@ -120,7 +120,7 @@ const fieldErrors =
 
 And then we show the user the error with this new component:
 
-```js
+```jsx
 function ErrorList({ errors }: { errors?: Array<string> | null }) {
 	return errors?.length ? (
 		<ul className="flex flex-col gap-1">
@@ -149,7 +149,7 @@ default browser validation as soon as we have out JS on the page. This way we
 can have the browser take care of some basic validation in case there is any
 delay with the JS, and once it's ready we take over with our custom validation.
 
-```js
+```jsx
 function useHydrated() {
 	const [hydrated, setHydrated] = useState(false)
 	useEffect(() => setHydrated(true), [])
@@ -165,6 +165,7 @@ export default function NoteEdit() {
 				noValidate={isHydrated}
 			>
   )
+}
 ```
 
 ## Accessibility
@@ -183,7 +184,7 @@ Labels are associated to the input with `for` and `id`. Labels are important for
 
 With [[React]] we substitule `for` for `htmlFor`:
 
-```ts
+```tsx
 export function App() {
 	return (
 		<form id="my-form">
@@ -220,7 +221,7 @@ When displaying errors in the form submission we add the `aria` labels for
 The `aria-invialid` and `aria-describedby` labels are only present when there is
 an error. So in [[React]] we use a conditional operator:
 
-```ts
+```tsx
 <input
 	aria-invalid={hasErrors || undefined}
 	aria-describedby={hasErrors ? 'id' : undefined}
@@ -244,7 +245,7 @@ Custom hook to autofocus input field after invalid form submission. The
 form is submitted twice in a row with errors, because the children of `formEl`
 are not tracked.
 
-```js
+```jsx
 function useFocusInvalid(formEl: HTMLFormElement | null, hasErrors: boolean) {
 	const errorNode = formEl?.querySelectorAll('[aria-invalid="true"]');
 	useEffect(() => {
@@ -268,7 +269,7 @@ form was submitted twice in a row with errors, even if they were different
 errors, cause the `formEl` ref doesn't keep track of changes in it's children.
 So I added this to the dependencies of `useEffect` in the hook:
 
-```js
+```jsx
 const errorNode = formEl?.querySelectorAll('[aria-invalid="true"]')
 ```
 
@@ -326,7 +327,9 @@ export async function action({ request, params }: DataFunctionArgs) {
 	if (hasErrors) {
 		return json({ status: 'error', errors } as const, { status: 400 })
 
-	await updateNote({ id: params.noteId, title, content })
+		await updateNote({ id: params.noteId, title, content })
+	}
+}
 ```
 
 Into this:
@@ -359,6 +362,7 @@ export async function action({ request, params }: DataFunctionArgs) {
 	const { title, content } = result.data
 
 	await updateNote({ id: params.noteId, title, content })
+}
 ```
 
 `result` with success looks like this:
@@ -417,6 +421,7 @@ export async function action({ request, params }: DataFunctionArgs) {
 	const { title, content } = submission.value
 
 	await updateNote({ id: params.noteId, title, content })
+}
 ```
 
 `submission` with success looks like this:
@@ -453,7 +458,7 @@ and with errors:
 
 On the front-end we start with this:
 
-```ts
+```tsx
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { useForm } from '@conform-to/react'
 
@@ -580,7 +585,7 @@ And we essentially replace all the error logic with the `useForm` from
 letting `conform` fill out all of our field props with
 `conform.[typeOfInput](fields[nameOfField])`:
 
-```ts
+```tsx
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { conform, useForm } from '@conform-to/react'
 
@@ -816,7 +821,6 @@ function Example() {
 					</li>
 				)}
 				)}
-			}
 			<button {...list.insert(fields.titles.name, { defaultValue: '' })}> Add Phone Number</button>
 			</ul>
 			<AddressFields config={fields.address} />

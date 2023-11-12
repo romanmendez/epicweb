@@ -42,9 +42,11 @@ file that hash will change and it will break the hash.
 
 ![Full Stack Foundations Certificate](https://www.epicweb.dev/api/certificate?moduleId=deb1eeaf-7f3a-4dff-81a1-9f07826693c2&userId=c37b5fcf-6d84-4015-a924-fc1a7bbdd7a2)
 
-## Professional Web Forms
+# Professional Web Forms
 
-Working almost exclusively in out `notes.$noteId_.edit.tsx` file
+## Form Validation
+
+Working almost exclusively in out `notes.$noteId_.edit.ts` file
 
 ### Form Validation
 
@@ -118,7 +120,7 @@ const fieldErrors =
 
 And then we show the user the error with this new component:
 
-```jsx
+```js
 function ErrorList({ errors }: { errors?: Array<string> | null }) {
 	return errors?.length ? (
 		<ul className="flex flex-col gap-1">
@@ -134,7 +136,7 @@ function ErrorList({ errors }: { errors?: Array<string> | null }) {
 
 Which we add bellow each input field:
 
-```jsx
+```js
 <div className="min-h-[32px] px-4 pb-3 pt-1">
 	<ErrorList errors={fieldErrors?.title} />
 </div>
@@ -181,7 +183,7 @@ Labels are associated to the input with `for` and `id`. Labels are important for
 
 With [[React]] we substitule `for` for `htmlFor`:
 
-```tsx
+```ts
 export function App() {
 	return (
 		<form id="my-form">
@@ -218,7 +220,7 @@ When displaying errors in the form submission we add the `aria` labels for
 The `aria-invialid` and `aria-describedby` labels are only present when there is
 an error. So in [[React]] we use a conditional operator:
 
-```tsx
+```ts
 <input
 	aria-invalid={hasErrors || undefined}
 	aria-describedby={hasErrors ? 'id' : undefined}
@@ -242,7 +244,7 @@ Custom hook to autofocus input field after invalid form submission. The
 form is submitted twice in a row with errors, because the children of `formEl`
 are not tracked.
 
-```jsx
+```js
 function useFocusInvalid(formEl: HTMLFormElement | null, hasErrors: boolean) {
 	const errorNode = formEl?.querySelectorAll('[aria-invalid="true"]');
 	useEffect(() => {
@@ -451,7 +453,7 @@ and with errors:
 
 On the front-end we start with this:
 
-```tsx
+```ts
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { useForm } from '@conform-to/react'
 
@@ -578,7 +580,7 @@ And we essentially replace all the error logic with the `useForm` from
 letting `conform` fill out all of our field props with
 `conform.[typeOfInput](fields[nameOfField])`:
 
-```tsx
+```ts
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { conform, useForm } from '@conform-to/react'
 
@@ -660,3 +662,337 @@ export default function NoteEdit() {
 	)
 }
 ```
+
+## File Upload
+
+### Multi-part Form Data
+
+```html
+<form action="/upload" method="post" enctype="multipart/form-data">
+	<label for="file-upload-input">Upload File</label>
+	<input type="file" id="file-upload-input" name="file-upload" />
+	<button type="submit">Upload File</button>
+</form>
+```
+
+For multiple files:
+
+```html
+<form action="/upload" method="post" enctype="multipart/form-data">
+	<input type="file" id="file-upload" name="file-upload" multiple />
+	<input type="submit" value="Upload File" />
+</form>
+```
+
+This returns a `FileList` object:
+
+```js
+let fileList = document.getElementById('file-upload').files
+```
+
+Each `File` object within the `FileList` contains properties such
+as `name`, `size`, `type`, which represents the MIME type, and `lastModified`.
+These files can then be read and manipulated using the `FileReader` API. To only
+accept image files:
+
+```html
+<input type="file" id="file-upload" name="file-upload" accept="image/*" />
+```
+
+On the server end [[Remix]] handles files set from the browser with these three
+utilities:
+
+[**`parseMultipartFormData`**](https://remix.run/docs/en/main/utils/parse-multipart-form-data):
+This is the utility that allows you to turn the stream of data and turn it into
+a `FormData` object. This is the same object you get from `request.formData()`,
+but the bit that represents the file will depend on the "uploadHandler" you use.
+
+[**`createFileUploadHandler`**](https://remix.run/docs/en/main/utils/unstable-create-file-upload-handler):
+This is a "uploadHandler" which will stream the file to disk and give back a
+path to that file with some other meta data.
+
+[**`createMemoryUploadHandler`**](https://remix.run/docs/en/main/utils/unstable-create-memory-upload-handler):
+This is a "uploadHandler" which will store the file in memory and give back a
+web
+standard [`File`](https://developer.mozilla.org/en-US/docs/Web/API/File) object.
+For small files. Use the `maxPartSize` option to limit the size of files it will
+load into memory.
+
+```js
+import {
+	createMemoryUploadHandler,
+	parseMultipartFormData,
+} from "@remix-run/node";
+
+export const action = async ({ request }: ActionArgs) => {
+	const uploadHandler = createMemoryUploadHandler({
+		maxPartSize: 1024 * 1024 * 5, // 5 MB
+	});
+	const formData = await parseMultipartFormData(request, uploadHandler);
+
+	const file = formData.get("avatar");
+};
+```
+
+For file validation with Zod:
+
+```ts
+const NoteEditorSchema = z.object({
+	title: z.string().max(titleMaxLength),
+	content: z.string().max(contentMaxLength),
+	imageId: z.string().optional(),
+	file: z
+		.instanceof(File)
+		.refine(file => {
+			return file.size <= MAX_UPLOAD_SIZE
+		}, 'File size must be less than 3MB')
+		.optional(),
+	altText: z.string().optional(),
+})
+```
+
+## Complex File Structures
+
+If we want an array of inputs we can name them all the same:
+
+```html
+<form>
+	<input type="text" name="todo" value="Buy milk" />
+	<input type="text" name="todo" value="Buy eggs" />
+	<input type="text" name="todo" value="Wash dishes" />
+</form>
+```
+
+And get this:
+
+```js
+const formData = new FormData(form)
+formData.getAll('todo') // ["Buy milk", "Buy eggs", "Wash dishes"]
+```
+
+With Conform we can do this using `useFieldset` for nested objects and
+`useFieldList` for arrays:
+
+```tsx
+// example inspired from the Conform docs
+import {
+	useForm,
+	useFieldset,
+	conform,
+	type FieldConfig,
+} from '@conform-to/react'
+
+function Example() {
+	const data = useLoaderData()
+	const actionData = useActionData()
+	const [form, fields] = useForm({
+		id: 'personal-data',
+		constraint: getFieldsetConstraint(PersonalDataSchema),
+		lastSubmission: actionData?.submission,
+		onValidate({ formData }) {
+			return parse(formData, { schema: PersonalDataSchema })
+		},
+		defaultValue: {
+			name: data.user.name,
+			dateOfBirth: data.user.dateOfBirth,
+			address: data.user.address,
+			phoneNumbers: data.user.phoneNumbers
+		},
+	})
+
+	// for arrays
+	const phoneNumbersList = useFieldsList(form.ref, fields.phoneNumbers)
+
+	return (
+		<form {...form.props}>
+			<input {...conform.input(fields.name)} />
+			<input {...conform.input(fields.dateOfBirth)} />
+			<ul>
+			{phoneNumbersList.map(number => {
+				return (
+					<li>
+						<input {...conform.input(number)}>
+						<button {...list.remove(fields.titles.name, { index })}> Remove Phone Number</button>
+					</li>
+				)}
+				)}
+			}
+			<button {...list.insert(fields.titles.name, { defaultValue: '' })}> Add Phone Number</button>
+			</ul>
+			<AddressFields config={fields.address} />
+		</form>
+	)
+}
+
+function AddressFields({ config }: { config: FieldConfig<Address> }) {
+	const ref = useRef<HTMLFieldSetElement>(null)
+	const fields = useFieldset(ref, config)
+	return (
+		<fieldset ref={ref}>
+			<input {...conform.input(fields.street)} />
+			<input {...conform.input(fields.zipcode)} />
+			<input {...conform.input(fields.city)} />
+			<input {...conform.input(fields.country)} />
+		</fieldset>
+	)
+}
+```
+
+Since adding and removing items from the form will submit `POST` request when
+javascript isn't loaded on the page, we add this to our backend:
+
+```ts
+if (submission.intent !== 'submit') {
+	return json({ status: 'idle', submission } as const)
+}
+```
+
+Conform will handle this case server-side and modify the `submission` object to
+reflex changes to the form like adding and removing fields.
+
+## Honeypot
+
+A hidden field added to form to detect bots.
+
+```html
+<form>
+	<div style="display: none;">
+		<label>
+			Do not fill out this field
+			<input type="text" name="name__confirm" />
+		</label>
+	</div>
+	<button type="submit">Send</button>
+</form>
+```
+
+With Remix Utils we do this:
+
+```js
+// create the honeypot instance and configure it:
+const honeypot = new Honeypot({
+	validFromFieldName: process.env.TESTING ? null : '',
+	encryptionSeed: process.env.HONEYPOT_SECRET,
+})
+
+// get the props for our fields:
+const honeyProps = honeypot.getInputProps()
+
+// pass those to the React provider
+<HoneypotProvider {...honeyProps}>
+	<App />
+</HoneypotProvider>
+
+// render the fields within our form
+<HoneypotInputs />
+
+// check the honeypot field on the server
+try {
+		honeypot.check(formData)
+	} catch (error) {
+		if (error instanceof SpamError) {
+			throw new Response('Invalid form submission', { status: 400 })
+		}
+		throw error
+	}
+```
+
+We add our own encryption seed in case our form is not being abled by the same
+server that generated it, when we distrubute our app.
+
+## CSRF
+
+For CSRF we create a cookie using Remix and then use Remix Utils:
+
+```js
+import { createCookie } from '@remix-run/node'
+import { CSRF } from 'remix-utils/csrf/server'
+
+const cookie = createCookie('csrf', {
+	path: '/',
+	httpOnly: true,
+	secure: process.env.NODE_ENV === 'production',
+	sameSite: 'lax',
+	secrets: process.env.SESSION_SECRET.split(','),
+})
+
+export const csrf = new new CSRF({ cookie })()
+```
+
+We import that `csrf` to the root of out app and send it to the client, with the
+cookie in the header:
+
+```js
+export async function loader() {
+	return json({
+		username: os.userInfo().username,
+		ENV: getEnv(),
+	})
+	const [csrfToken, csrfCookieHeader] = await csrf.commitToken()
+	return json(
+		{ username: os.userInfo().username, ENV: getEnv(), csrfToken },
+		{
+			headers: csrfCookieHeader ? { 'set-cookie': csrfCookieHeader } : {},
+		},
+	)
+```
+
+We also wrap out app in a provider so we can add the
+`<AuthenticityTokenInput />` to all our forms:
+
+```tsx
+export default function AppWithProviders() {
+	const data = useLoaderData<typeof loader>()
+	return (
+		<AuthenticityTokenProvider token={data.csrfToken}>
+			<App />
+		</AuthenticityTokenProvider>
+	)
+}
+```
+
+## Rate Limiting
+
+We create 3 tiers of rate limits:
+
+- `defaultRateLimit` for all of our `GET` request, which has the least
+  restrictive setting.
+- `strongRateLimit` for `POST` requests.
+- `strongestRateLimit` for `POST` requests that come from login attempts or
+  other sensitive forms that might be targets of brute force attacks.
+
+```ts
+// place the rate limiter right before we start doing the more intensive Remix serving.
+const maxMultiple = process.env.TESTING ? 10_000 : 1
+
+const defaultRateLimit = {
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	limit: 1000 * maxMultiple, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+	standardHeaders: true, // Use standard draft-6 headers of `RateLimit-Policy` `RateLimit-Limit`, and `RateLimit-Remaining`
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+	// store: ... , // Use an external store for more precise rate limiting
+}
+const generalRateLimit = rateLimit({
+	...defaultRateLimit,
+})
+const strongRateLimit = rateLimit({
+	...defaultRateLimit,
+	limit: 100 * maxMultiple,
+})
+const strongestRateLimit = rateLimit({
+	limit: 10 * maxMultiple,
+})
+
+app.use((req, res, next) => {
+	const strongPaths = ['/signup']
+	if (req.method !== 'GET' && req.method !== 'HEAD') {
+		if (strongPaths.some(path => req.path.includes(path))) {
+			return strongestRateLimit(req, res, next)
+		}
+		return strongRateLimit(req, res, next)
+	}
+	return generalRateLimit(req, res, next)
+})
+```
+
+![Professional Web Forms Certificate](https://www.epicweb.dev/api/certificate?moduleId=9abe3ebc-46e9-4b9e-a7b0-347c83f83941&userId=c37b5fcf-6d84-4015-a924-fc1a7bbdd7a2)

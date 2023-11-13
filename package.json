@@ -12,11 +12,13 @@
     "build:server": "tsx ./other/build-server.ts",
     "dev": "remix dev --manual -c \"node ./server/dev-server.js\"",
     "test": "playwright test",
-    "seed": "npx tsx ./prisma/seed.ts",
     "serve": "remix-serve build/index.js",
     "start": "run-s build serve",
     "lint": "eslint .",
     "typecheck": "tsc"
+  },
+  "prisma": {
+    "seed": "npx tsx ./prisma/seed.ts"
   },
   "eslintIgnore": [
     "/node_modules",

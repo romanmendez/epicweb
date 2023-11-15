@@ -2,16 +2,24 @@ import fs from 'node:fs'
 import { faker } from '@faker-js/faker'
 import { PrismaClient } from '@prisma/client'
 import { promiseHash } from 'remix-utils/promise'
+import { UniqueEnforcer } from 'enforce-unique'
 
 const prisma = new PrismaClient()
+const uniqueUsername = new UniqueEnforcer()
 
 export function createUser() {
 	const firstName = faker.person.firstName()
 	const lastName = faker.person.lastName()
-	const username = faker.internet.userName({
-		firstName: firstName.toLowerCase(),
-		lastName: lastName.toLowerCase(),
-	})
+	const username = uniqueUsername
+		.enforce(() =>
+			faker.internet.userName({
+				firstName: firstName.toLowerCase(),
+				lastName: lastName.toLowerCase(),
+			}),
+		)
+		.slice(0, 20)
+		.toLowerCase()
+		.replace(/[^a-z0-9_]/g, '_')
 	return {
 		username,
 		name: `${firstName} ${lastName}`,
@@ -94,30 +102,32 @@ async function seed() {
 	)
 
 	for (let n = 1; n < totalUsers; n++) {
-		await prisma.user.create({
-			data: {
-				...createUser(),
-				image: { create: userImages[n % 10] },
-				notes: {
-					create: Array.from({
-						length: faker.number.int({ min: 1, max: 3 }),
-					}).map(() => {
-						return {
-							title: faker.lorem.sentence(),
-							content: faker.lorem.paragraphs(),
-							images: {
-								create: Array.from({
-									length: faker.number.int({ min: 1, max: 3 }),
-								}).map(() => {
-									const imageNumber = faker.number.int(noteImages.length - 1)
-									return noteImages[imageNumber]
-								}),
-							},
-						}
-					}),
+		await prisma.user
+			.create({
+				data: {
+					...createUser(),
+					image: { create: userImages[n % 10] },
+					notes: {
+						create: Array.from({
+							length: faker.number.int({ min: 1, max: 3 }),
+						}).map(() => {
+							return {
+								title: faker.lorem.sentence(),
+								content: faker.lorem.paragraphs(),
+								images: {
+									create: Array.from({
+										length: faker.number.int({ min: 1, max: 3 }),
+									}).map(() => {
+										const imageNumber = faker.number.int(noteImages.length - 1)
+										return noteImages[imageNumber]
+									}),
+								},
+							}
+						}),
+					},
 				},
-			},
-		})
+			})
+			.catch(e => console.log('error creating user', e))
 	}
 	console.timeEnd(`👤 Created ${totalUsers} users...`)
 

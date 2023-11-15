@@ -10,6 +10,7 @@ import {
 	Outlet,
 	useLoaderData,
 	type MetaFunction,
+	useMatches,
 } from '@remix-run/react'
 import { csrf } from './utils/csrf.server.ts'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
@@ -17,6 +18,7 @@ import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 import faviconAssetUrl from '#app/assets/favicon.svg'
 import { Document } from '#app/components/document.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { SearchBar } from '#app/components/search-bar.tsx'
 import fontStylestylesheetUrl from '#app/styles/font.css'
 import tailwindStylesheetUrl from '#app/styles/tailwind.css'
 import { getEnv } from '#app/utils/env.server.ts'
@@ -52,14 +54,21 @@ export async function loader({ request }: DataFunctionArgs) {
 
 export function App() {
 	const data = useLoaderData<typeof loader>()
+	const matches = useMatches()
+	const isOnSearchPage = matches.find(m => m.id === '/routes/users+/index')
 	return (
 		<Document>
 			<header className="container mx-auto py-6">
-				<nav className="flex justify-between">
+				<nav className="flex items-center justify-between gap-6">
 					<Link to="/">
 						<div className="font-light">epic</div>
 						<div className="font-bold">notes</div>
 					</Link>
+					{isOnSearchPage ? null : (
+						<div className="ml-auto max-w-sm flex-1">
+							<SearchBar status="idle" />
+						</div>
+					)}
 					<Link className="underline" to="/signup">
 						Sign Up
 					</Link>

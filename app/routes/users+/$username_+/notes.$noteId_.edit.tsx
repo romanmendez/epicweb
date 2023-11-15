@@ -18,7 +18,7 @@ import {
 	list,
 } from '@conform-to/react'
 import { db, updateNote } from '#app/utils/db.server.ts'
-import { cn, invariantResponse, useIsSubmitting } from '#app/utils/misc.tsx'
+import { cn, invariantResponse, useIsPending } from '#app/utils/misc.tsx'
 import {
 	Button,
 	Label,
@@ -149,7 +149,7 @@ function ErrorList({
 export default function NoteEdit() {
 	const { note } = useLoaderData<typeof loader>()
 	const actionData = useActionData<typeof action>()
-	const isSubmitting = useIsSubmitting()
+	const isPending = useIsPending()
 	const [form, fields] = useForm({
 		id: 'login-form',
 		constraint: getFieldsetConstraint(NoteEditorSchema),
@@ -229,13 +229,13 @@ export default function NoteEdit() {
 			<div className={floatingToolbarClassName}>
 				<StatusButton
 					type="submit"
-					disabled={isSubmitting}
-					status={isSubmitting ? 'pending' : 'idle'}
+					disabled={isPending}
+					status={isPending ? 'pending' : 'idle'}
 					form={form.id}
 					name="intent"
 					value="submit"
 				>
-					{isSubmitting ? 'Submitting' : 'Submit'}
+					{isPending ? 'Submitting' : 'Submit'}
 				</StatusButton>
 				<Button
 					type="submit"

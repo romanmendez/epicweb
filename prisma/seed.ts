@@ -50,6 +50,7 @@ async function seed() {
 	console.timeEnd('🧹 Cleaned up the database...')
 
 	const totalUsers = 5
+
 	console.time(`👤 Created ${totalUsers} users...`)
 	const noteImages = await Promise.all([
 		img({
@@ -112,7 +113,7 @@ async function seed() {
 							length: faker.number.int({ min: 1, max: 3 }),
 						}).map(() => {
 							return {
-								title: faker.lorem.sentence(),
+								title: faker.lorem.sentence(1),
 								content: faker.lorem.paragraphs(),
 								images: {
 									create: Array.from({

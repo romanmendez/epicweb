@@ -1,8 +1,8 @@
 import { useLoaderData, Link, Form, type MetaFunction } from '@remix-run/react'
 import { type DataFunctionArgs, json, redirect } from '@remix-run/node'
-import { db } from '#app/utils/db.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 import { Button } from '#app/components/ui/button.tsx'
-import { invariantResponse } from '#app/utils/misc.tsx'
+import { getNoteImgSrc, invariantResponse } from '#app/utils/misc.tsx'
 import { floatingToolbarClassName } from '#app/components/floating-toolbar.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { type loader as notesLoader } from './notes.tsx'
@@ -11,9 +11,14 @@ import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { noteId } = params
-	const note = db.note.findFirst({
+	const note = await prisma.note.findUnique({
 		where: {
-			id: { equals: noteId },
+			id: noteId,
+		},
+		select: {
+			images: true,
+			title: true,
+			content: true,
 		},
 	})
 	invariantResponse(note, `note ${noteId} not found`, { status: 404 })
@@ -27,7 +32,7 @@ export async function action({ params, request }: DataFunctionArgs) {
 	await validateCSRFToken(formData, request.headers)
 
 	if (intent === 'delete') {
-		db.note.delete({ where: { id: { equals: params.noteId } } })
+		prisma.note.delete({ where: { id: params.noteId } })
 	}
 	return redirect(`/users/${params.username}/notes`)
 }
@@ -41,9 +46,9 @@ export default function SomeNoteId() {
 				<ul className="flex flex-wrap gap-5 py-5">
 					{note.images.map(image => (
 						<li key={image.id}>
-							<a href={`/resources/images/${image.id}`}>
+							<a href={getNoteImgSrc(image.id)}>
 								<img
-									src={`/resources/images/${image.id}`}
+									src={getNoteImgSrc(image.id)}
 									alt={image.altText ?? ''}
 									className="h-32 w-32 rounded-lg object-cover"
 								/>

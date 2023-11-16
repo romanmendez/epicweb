@@ -55,15 +55,23 @@ export async function loader({ request }: DataFunctionArgs) {
 export function App() {
 	const data = useLoaderData<typeof loader>()
 	const matches = useMatches()
+	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
 	const isOnSearchPage = matches.find(m => m.id === '/routes/users+/index')
+	console.log(isNotHome)
 	return (
 		<Document>
 			<header className="container mx-auto py-6">
 				<nav className="flex items-center justify-between gap-6">
-					<Link to="/">
-						<div className="font-light">epic</div>
-						<div className="font-bold">notes</div>
-					</Link>
+					{isNotHome ? (
+						<Link to=".." relative="path">
+							<div className="font-bold">back</div>
+						</Link>
+					) : (
+						<Link to="/">
+							<div className="font-light">epic</div>
+							<div className="font-bold">notes</div>
+						</Link>
+					)}
 					{isOnSearchPage ? null : (
 						<div className="ml-auto max-w-sm flex-1">
 							<SearchBar status="idle" />

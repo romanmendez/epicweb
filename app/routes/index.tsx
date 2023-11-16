@@ -2,7 +2,7 @@ import { Link } from '@remix-run/react'
 
 export default function Index() {
 	return (
-		<Link to="/users/kody" className="container text-center">
+		<Link to="/users" className="container text-center">
 			<h1 className="my-8 text-h1">Epic Notes</h1>
 			<p>
 				<span className="inline-flex items-center justify-center gap-2 rounded-xl bg-muted px-8 py-4 text-body-lg text-muted-foreground">

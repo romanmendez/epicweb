@@ -9,6 +9,7 @@ import {
 import { Form, useActionData, useLoaderData } from '@remix-run/react'
 import { z } from 'zod'
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
+import { createId as cuid } from '@paralleldrive/cuid2'
 import {
 	conform,
 	useForm,
@@ -17,8 +18,13 @@ import {
 	useFieldList,
 	list,
 } from '@conform-to/react'
-import { db, updateNote } from '#app/utils/db.server.ts'
-import { cn, invariantResponse, useIsPending } from '#app/utils/misc.tsx'
+import { prisma } from '#app/utils/db.server.ts'
+import {
+	cn,
+	getNoteImgSrc,
+	invariantResponse,
+	useIsPending,
+} from '#app/utils/misc.tsx'
 import {
 	Button,
 	Label,
@@ -32,23 +38,20 @@ import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
-	const note = db.note.findFirst({
-		where: {
-			id: {
-				equals: params.noteId,
+	const note = await prisma.note.findFirst({
+		where: { id: params.noteId },
+		select: {
+			title: true,
+			content: true,
+			images: {
+				select: { id: true, altText: true },
 			},
 		},
 	})
 
 	invariantResponse(note, 'Note not found', { status: 404 })
 
-	return json({
-		note: {
-			title: note.title,
-			content: note.content,
-			images: note.images.map(i => ({ id: i.id, altText: i.altText })),
-		},
-	})
+	return json({ note })
 }
 
 const MAX_UPLOAD_SIZE = 1024 * 1024 * 3 // 3MB
@@ -69,6 +72,20 @@ const ImageFieldsetSchema = z.object({
 		.optional(),
 	altText: z.string().optional(),
 })
+
+type ImageFieldset = z.infer<typeof ImageFieldsetSchema>
+
+function imageHasFile(
+	image: ImageFieldset,
+): image is ImageFieldset & { file: NonNullable<ImageFieldset['file']> } {
+	return Boolean(image.file?.size && image.file?.size > 0)
+}
+
+function imageHasId(
+	image: ImageFieldset,
+): image is ImageFieldset & { id: NonNullable<ImageFieldset['id']> } {
+	return image.id != null
+}
 
 const NoteEditorSchema = z.object({
 	title: z
@@ -92,7 +109,9 @@ const NoteEditorSchema = z.object({
 })
 
 export async function action({ request, params }: DataFunctionArgs) {
-	invariantResponse(params.noteId, 'Not a valid note Id')
+	const { noteId, username } = params
+	invariantResponse(noteId, 'Not a valid note Id')
+	invariantResponse(username, 'Not a valid username')
 
 	const uploadHandler = createMemoryUploadHandler({
 		maxPartSize: MAX_UPLOAD_SIZE,
@@ -101,9 +120,42 @@ export async function action({ request, params }: DataFunctionArgs) {
 	await validateCSRFToken(formData, request.headers)
 
 	if (formData.get('intent') === 'cancel') {
-		return redirect(`/users/${params.username}/notes/${params.noteId}`)
+		return redirect(`/users/${username}/notes/${noteId}`)
 	}
-	const submission = parse(formData, { schema: NoteEditorSchema })
+	const submission = await parse(formData, {
+		schema: NoteEditorSchema.transform(async ({ images = [], ...data }) => {
+			return {
+				...data,
+				imageUpdates: await Promise.all(
+					images.filter(imageHasId).map(async i => {
+						if (imageHasFile(i)) {
+							return {
+								id: i.id,
+								altText: i.altText,
+								contentType: i.file.type,
+								blob: Buffer.from(await i.file.arrayBuffer()),
+							}
+						} else {
+							return { id: i.id, altText: i.altText }
+						}
+					}),
+				),
+				newImages: await Promise.all(
+					images
+						.filter(imageHasFile)
+						.filter(i => !i.id)
+						.map(async image => {
+							return {
+								altText: image.altText,
+								contentType: image.file.type,
+								blob: Buffer.from(await image.file.arrayBuffer()),
+							}
+						}),
+				),
+			}
+		}),
+		async: true,
+	})
 
 	if (formData.get('intent') !== 'submit') {
 		return json({ status: 'idle', submission } as const)
@@ -118,14 +170,27 @@ export async function action({ request, params }: DataFunctionArgs) {
 			{ status: 400 },
 		)
 	}
-	const { title, content, images } = submission.value
-	await updateNote({
-		id: params.noteId,
-		title,
-		content,
-		images: images,
+	const { title, content, imageUpdates = [], newImages = [] } = submission.value
+
+	await prisma.note.update({
+		where: { id: noteId },
+		data: {
+			title,
+			content,
+			images: {
+				deleteMany: {
+					id: { notIn: imageUpdates.map(i => i.id) },
+				},
+				updateMany: imageUpdates.map(i => ({
+					where: { id: i.id },
+					data: { ...i, id: i.blob ? cuid() : i.id },
+				})),
+				create: newImages,
+			},
+		},
 	})
-	return redirect(`/users/${params.username}/notes/${params.noteId}`)
+
+	return redirect(`/users/${username}/notes/${noteId}`)
 }
 
 function ErrorList({
@@ -136,7 +201,7 @@ function ErrorList({
 	id?: string
 }) {
 	return errors?.length ? (
-		<ul className="flex flex-col gap-1" aria-aria-describedby={id}>
+		<ul className="flex flex-col gap-1" aria-describedby={id}>
 			{errors.map((error, i) => (
 				<li key={i} className="text-foreground-danger text-[10px]">
 					{error}
@@ -251,16 +316,12 @@ export default function NoteEdit() {
 	)
 }
 
-function ImageChooser({
-	config,
-}: {
-	config: FieldConfig<z.infer<typeof ImageFieldsetSchema>>
-}) {
+function ImageChooser({ config }: { config: FieldConfig<ImageFieldset> }) {
 	const ref = useRef<HTMLFieldSetElement>(null)
 	const fields = useFieldset(ref, config)
 	const existingImage = Boolean(fields.id.defaultValue)
 	const [previewImage, setPreviewImage] = useState<string | null>(
-		existingImage ? `/resources/images/${fields.id.defaultValue}` : null,
+		fields.id.defaultValue ? getNoteImgSrc(fields.id.defaultValue) : null,
 	)
 	const [altText, setAltText] = useState(fields.altText.defaultValue ?? '')
 	return (

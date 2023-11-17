@@ -32,7 +32,7 @@ export async function action({ params, request }: DataFunctionArgs) {
 	await validateCSRFToken(formData, request.headers)
 
 	if (intent === 'delete') {
-		prisma.note.delete({ where: { id: params.noteId } })
+		await prisma.note.delete({ where: { id: params.noteId } })
 	}
 	return redirect(`/users/${params.username}/notes`)
 }

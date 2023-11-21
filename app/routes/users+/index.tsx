@@ -2,18 +2,19 @@ import { json, redirect, type DataFunctionArgs } from '@remix-run/node'
 import { Link, useLoaderData } from '@remix-run/react'
 import { z } from 'zod'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { ErrorList } from '#app/components/forms.tsx'
 import { SearchBar } from '#app/components/search-bar.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserImgSrc, useDelayedIsPending } from '#app/utils/misc.tsx'
-import { ErrorList } from '#app/components/forms.tsx'
 
-const UserSchema = z.object({
+const UserSearchResultSchema = z.object({
 	id: z.string(),
-	name: z.string().nullable(),
 	username: z.string(),
+	name: z.string().nullable(),
 	imageId: z.string().nullable(),
 })
-const UsersSchema = z.array(UserSchema)
+
+const UserSearchResultsSchema = z.array(UserSearchResultSchema)
 
 export async function loader({ request }: DataFunctionArgs) {
 	const searchTerm = new URL(request.url).searchParams.get('search')
@@ -23,11 +24,11 @@ export async function loader({ request }: DataFunctionArgs) {
 
 	const like = `%${searchTerm ?? ''}%`
 	const rawUsers = await prisma.$queryRaw`
-		SELECT User.id, User.name, User.username, UserImage.id AS imageId
-		FROM User 
+		SELECT User.id, User.username, User.name, UserImage.id AS imageId
+		FROM User
 		LEFT JOIN UserImage ON User.id = UserImage.userId
-		WHERE User.username LIKE ${like} 
-		OR User.name LIKE ${like};
+		WHERE User.username LIKE ${like}
+		OR User.name LIKE ${like}
 		ORDER BY (
 			SELECT Note.updatedAt
 			FROM Note
@@ -37,18 +38,14 @@ export async function loader({ request }: DataFunctionArgs) {
 		) DESC
 		LIMIT 50
 	`
-	const results = UsersSchema.safeParse(rawUsers)
-	console.log(results)
-	if (!results.success) {
-		console.log(results.error)
-		return json({ status: 'error', error: results.error.message } as const, {
+
+	const result = UserSearchResultsSchema.safeParse(rawUsers)
+	if (!result.success) {
+		return json({ status: 'error', error: result.error.message } as const, {
 			status: 400,
 		})
 	}
-	return json({
-		status: 'idle',
-		users: results.data,
-	} as const)
+	return json({ status: 'idle', users: result.data } as const)
 }
 
 export default function UsersRoute() {
@@ -57,6 +54,7 @@ export default function UsersRoute() {
 		formMethod: 'GET',
 		formAction: '/users',
 	})
+
 	if (data.status === 'error') {
 		console.error(data.error)
 	}

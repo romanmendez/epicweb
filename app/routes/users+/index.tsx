@@ -4,29 +4,59 @@ import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { SearchBar } from '#app/components/search-bar.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { cn, getUserImgSrc, useDelayedIsPending } from '#app/utils/misc.tsx'
+import { z } from 'zod'
+import { ErrorList } from '#app/components/forms.tsx'
 
 export async function loader({ request }: DataFunctionArgs) {
 	const searchTerm = new URL(request.url).searchParams.get('search')
 	if (searchTerm === '') {
 		return redirect('/users')
 	}
-	const users = await prisma.user.findMany({
-		select: { username: true, id: true, name: true, image: true },
-		where: {
-			username: {
-				contains: searchTerm ?? '',
-			},
-		},
+	const UserSchema = z.object({
+		id: z.string(),
+		name: z.string().nullable(),
+		username: z.string(),
+		imageId: z.string().nullable(),
 	})
+	const UsersSchema = z.array(UserSchema)
 
+	const like = `%${searchTerm ?? ''}%`
+	const rawUsers = await prisma.$queryRaw`
+		SELECT 
+				User.id, 
+				User.name, 
+				User.username, 
+				UserImage.id as imageId
+		FROM 
+				User 
+		LEFT JOIN 
+				UserImage ON UserImage.userId = User.id
+		LEFT JOIN (
+				SELECT 
+						ownerId, 
+						MAX(updatedAt) as lastUpdated
+				FROM 
+						Note
+				GROUP BY 
+						ownerId
+		) as RecentNote ON User.id = RecentNote.ownerId
+		WHERE 
+				User.username LIKE ${like} OR User.name LIKE ${like}
+		ORDER BY 
+				RecentNote.lastUpdated DESC
+		LIMIT 50;
+	`
+	const results = UsersSchema.safeParse(rawUsers)
+	console.log(results)
+	if (!results.success) {
+		console.log(results.error)
+		return json({ status: 'error', error: results.error.message } as const, {
+			status: 400,
+		})
+	}
 	return json({
 		status: 'idle',
-		users: users.map(u => ({
-			id: u.id,
-			username: u.username,
-			name: u.name,
-			image: u.image ? { id: u.image.id } : undefined,
-		})),
+		users: results.data,
 	} as const)
 }
 
@@ -36,6 +66,9 @@ export default function UsersRoute() {
 		formMethod: 'GET',
 		formAction: '/users',
 	})
+	if (data.status === 'error') {
+		console.error(data.error)
+	}
 
 	return (
 		<div className="container mb-48 mt-36 flex flex-col items-center justify-center gap-6">
@@ -60,7 +93,7 @@ export default function UsersRoute() {
 									>
 										<img
 											alt={user.name ?? user.username}
-											src={getUserImgSrc(user.image?.id)}
+											src={getUserImgSrc(user.imageId)}
 											className="h-16 w-16 rounded-full"
 										/>
 										{user.name ? (
@@ -78,6 +111,8 @@ export default function UsersRoute() {
 					) : (
 						<p>No users found</p>
 					)
+				) : data.status === 'error' ? (
+					<ErrorList errors={['There was an error parsing the results']} />
 				) : null}
 			</main>
 		</div>

@@ -37,8 +37,6 @@ export const prisma = singleton('prisma', () => {
 	return client
 })
 
-console.log(await prisma.user.findMany())
-
 const getId = () => crypto.randomBytes(16).toString('hex').slice(0, 8)
 
 export const db = singleton('db', () => {

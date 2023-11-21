@@ -56,8 +56,7 @@ export function App() {
 	const data = useLoaderData<typeof loader>()
 	const matches = useMatches()
 	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
-	const isOnSearchPage = matches.find(m => m.id === '/routes/users+/index')
-	console.log(isNotHome)
+	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
 	return (
 		<Document>
 			<header className="container mx-auto py-6">

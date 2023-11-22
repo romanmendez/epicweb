@@ -15,6 +15,8 @@
     "test": "playwright test",
     "serve": "remix-serve build/index.js",
     "start": "run-s build serve",
+    "query": "tsx prisma/tmp.ignore.ts",
+    "query:watch": "tsx watch prisma/tmp.ignore.ts",
     "lint": "eslint .",
     "typecheck": "tsc"
   },

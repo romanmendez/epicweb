@@ -11,6 +11,8 @@ import {
 	useLoaderData,
 	type MetaFunction,
 	useMatches,
+	useFetcher,
+	useFetchers,
 } from '@remix-run/react'
 import { csrf } from './utils/csrf.server.ts'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
@@ -23,6 +25,13 @@ import fontStylestylesheetUrl from '#app/styles/font.css'
 import tailwindStylesheetUrl from '#app/styles/tailwind.css'
 import { getEnv } from '#app/utils/env.server.ts'
 import { honeypot } from './utils/honeypot.server.ts'
+import { getTheme, setTheme, type Theme } from './utils/theme.server.ts'
+import { useForm } from '@conform-to/react'
+import { parse } from '@conform-to/zod'
+import { z } from 'zod'
+import { Icon } from './components/ui/icon.tsx'
+import { ErrorList } from './components/forms.tsx'
+import { invariantResponse } from './utils/misc.tsx'
 
 export const links: LinksFunction = () => {
 	return [
@@ -39,6 +48,7 @@ export async function loader({ request }: DataFunctionArgs) {
 		{
 			username: os.userInfo().username,
 			ENV: getEnv(),
+			theme: getTheme(request),
 			honeypotProps: honeypot.getInputProps(),
 			csrfToken,
 		},
@@ -52,13 +62,42 @@ export async function loader({ request }: DataFunctionArgs) {
 	)
 }
 
+export async function action({ request }: DataFunctionArgs) {
+	const formData = await request.formData()
+	invariantResponse(
+		formData.get('intent') === 'update-theme',
+		'Invalid indent',
+		{ status: 400 },
+	)
+	const submission = parse(formData, { schema: ThemeFormSchema })
+
+	if (submission.intent !== 'submit') {
+		return json({ status: 'success', submission } as const)
+	}
+	if (!submission.value) {
+		return json({ status: 'error', submission } as const, { status: 400 })
+	}
+	const responseInit = {
+		headers: {
+			'set-cookie': setTheme(submission.value.theme),
+		},
+	}
+	return json({ success: true, submission }, responseInit)
+}
+
+const ThemeFormSchema = z.object({
+	theme: z.enum(['light', 'dark']),
+})
+
 export function App() {
 	const data = useLoaderData<typeof loader>()
 	const matches = useMatches()
+	const theme = useTheme()
+	console.log(theme)
 	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
 	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
 	return (
-		<Document>
+		<Document theme={theme} env={data.ENV}>
 			<header className="container mx-auto py-6">
 				<nav className="flex items-center justify-between gap-6">
 					{isNotHome ? (
@@ -90,6 +129,7 @@ export function App() {
 					<div className="font-bold">notes</div>
 				</Link>
 				<p>Built with ♥️ by {data.username}</p>
+				<ThemeSwitch userPreference={theme} />
 			</div>
 			<div className="h-5" />
 			<script
@@ -109,6 +149,59 @@ export default function AppWithProviders() {
 				<App />
 			</HoneypotProvider>
 		</AuthenticityTokenProvider>
+	)
+}
+
+const themeFetcherKey = 'theme-fetcher'
+function useTheme(): Theme {
+	const data = useLoaderData<typeof loader>()
+	const themeFetcher = useFetcher({ key: themeFetcherKey })
+	const optimisticTheme = themeFetcher?.formData?.get('theme')
+	if (optimisticTheme === 'light' || optimisticTheme === 'dark') {
+		return optimisticTheme
+	}
+	return data.theme
+}
+
+function ThemeSwitch({ userPreference }: { userPreference?: Theme }) {
+	const fetcher = useFetcher<typeof action>({ key: themeFetcherKey })
+	const [form] = useForm({
+		id: 'theme-switch',
+		lastSubmission: fetcher.data?.submission,
+		onValidate({ formData }) {
+			return parse(formData, { schema: ThemeFormSchema })
+		},
+	})
+	const mode = userPreference ?? 'light'
+	const nextMode = mode === 'light' ? 'dark' : 'light'
+	const modeLabel = {
+		light: (
+			<Icon name="sun">
+				<span className="sr-only">Light</span>
+			</Icon>
+		),
+		dark: (
+			<Icon name="moon">
+				<span className="sr-only">Dark</span>
+			</Icon>
+		),
+	}
+
+	return (
+		<fetcher.Form method="POST">
+			<input type="hidden" name="theme" value={nextMode} />
+			<div className="flex gap-2">
+				<button
+					name="intent"
+					value="update-theme"
+					type="submit"
+					className="flex h-8 w-8 cursor-pointer items-center justify-center"
+				>
+					{modeLabel[mode]}
+				</button>
+			</div>
+			<ErrorList errors={form.errors} id={form.errorId} />
+		</fetcher.Form>
 	)
 }
 

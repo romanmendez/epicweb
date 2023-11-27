@@ -12,7 +12,6 @@ import {
 	type MetaFunction,
 	useMatches,
 	useFetcher,
-	useFetchers,
 } from '@remix-run/react'
 import { csrf } from './utils/csrf.server.ts'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'

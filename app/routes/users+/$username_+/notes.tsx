@@ -3,6 +3,7 @@ import { Outlet, Link, NavLink, useLoaderData } from '@remix-run/react'
 import { cn, getUserImgSrc, invariantResponse } from '#app/utils/misc.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import { Icon } from '#app/components/ui/icon.tsx'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { username } = params
@@ -47,7 +48,16 @@ export default function NotesRoute() {
 							</h1>
 						</Link>
 						<ul className="overflow-y-auto overflow-x-hidden pb-12">
-							{/* 🐨 this will need to be updated since the notes are on data.owner.notes now */}
+							<li className="p-1 pr-0">
+								<NavLink
+									to="new"
+									className={({ isActive }) =>
+										cn(navLinkDefaultClassName, isActive && 'bg-accent')
+									}
+								>
+									<Icon name="plus">New Note</Icon>
+								</NavLink>
+							</li>
 							{data.notes.map(note => (
 								<li key={note.id} className="p-1 pr-0">
 									<NavLink

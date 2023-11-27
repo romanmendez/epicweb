@@ -85,6 +85,7 @@ function imageHasId(
 }
 
 const NoteEditorSchema = z.object({
+	id: z.string().optional(),
 	title: z
 		.string({ required_error: 'Title is required' })
 		.min(
@@ -106,20 +107,12 @@ const NoteEditorSchema = z.object({
 })
 
 export async function action({ request, params }: DataFunctionArgs) {
-	const { noteId, username } = params
-	invariantResponse(noteId, 'Not a valid note Id')
-	invariantResponse(username, 'Not a valid username')
-
 	const uploadHandler = createMemoryUploadHandler({
 		maxPartSize: MAX_UPLOAD_SIZE,
 	})
 	const formData = await parseMultipartFormData(request, uploadHandler)
 	await validateCSRFToken(formData, request.headers)
 
-	console.log('cancel')
-	if (formData.get('intent') === 'cancel') {
-		return redirect('..')
-	}
 	const submission = await parse(formData, {
 		schema: NoteEditorSchema.transform(async ({ images = [], ...data }) => {
 			return {
@@ -155,7 +148,7 @@ export async function action({ request, params }: DataFunctionArgs) {
 		async: true,
 	})
 
-	if (formData.get('intent') !== 'submit') {
+	if (submission.intent !== 'submit') {
 		return json({ status: 'idle', submission } as const)
 	}
 
@@ -168,11 +161,24 @@ export async function action({ request, params }: DataFunctionArgs) {
 			{ status: 400 },
 		)
 	}
-	const { title, content, imageUpdates = [], newImages = [] } = submission.value
+	const {
+		id: noteId,
+		title,
+		content,
+		imageUpdates = [],
+		newImages = [],
+	} = submission.value
 
-	await prisma.note.update({
-		where: { id: noteId },
-		data: {
+	const updatedNote = await prisma.note.upsert({
+		select: { id: true, owner: { select: { username: true } } },
+		where: { id: noteId ?? '__new_note__' },
+		create: {
+			owner: { connect: { username: params.username } },
+			title,
+			content,
+			images: { create: newImages },
+		},
+		update: {
 			title,
 			content,
 			images: {
@@ -188,7 +194,9 @@ export async function action({ request, params }: DataFunctionArgs) {
 		},
 	})
 
-	return redirect(`/users/${username}/notes/${noteId}`)
+	return redirect(
+		`/users/${updatedNote.owner.username}/notes/${updatedNote.id}`,
+	)
 }
 
 function ErrorList({
@@ -246,6 +254,7 @@ export function NoteEditor({
 			>
 				<AuthenticityTokenInput />
 				<button type="submit" className="hidden" name="intent" value="submit" />
+				{note ? <input type="hidden" name="id" value={note.id} /> : null}
 				<div className="flex flex-col gap-1">
 					<div>
 						<Label htmlFor={fields.title.id}>Title</Label>

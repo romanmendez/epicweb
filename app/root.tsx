@@ -6,6 +6,11 @@ import {
 	type LinksFunction,
 } from '@remix-run/node'
 import {
+	Meta,
+	Links,
+	ScrollRestoration,
+	Scripts,
+	LiveReload,
 	Link,
 	Outlet,
 	useLoaderData,
@@ -15,9 +20,9 @@ import {
 } from '@remix-run/react'
 import { csrf } from './utils/csrf.server.ts'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
+import { Toaster, toast as showToast } from 'sonner'
 import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 import faviconAssetUrl from '#app/assets/favicon.svg'
-import { Document } from '#app/components/document.tsx'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { SearchBar } from '#app/components/search-bar.tsx'
 import fontStylestylesheetUrl from '#app/styles/font.css'
@@ -30,7 +35,10 @@ import { parse } from '@conform-to/zod'
 import { z } from 'zod'
 import { Icon } from './components/ui/icon.tsx'
 import { ErrorList } from './components/forms.tsx'
-import { invariantResponse } from './utils/misc.tsx'
+import { combineHeaders, invariantResponse } from './utils/misc.tsx'
+import { toastSessionStorage } from './utils/toast.server.ts'
+import { Spacer } from './components/spacer.tsx'
+import { useEffect } from 'react'
 
 export const links: LinksFunction = () => {
 	return [
@@ -43,20 +51,26 @@ export const links: LinksFunction = () => {
 
 export async function loader({ request }: DataFunctionArgs) {
 	const [csrfToken, csrfCookieHeader] = await csrf.commitToken(request)
+	const cookies = request.headers.get('cookie')
+	const cookieSession = await toastSessionStorage.getSession(cookies)
+	const toast = cookieSession.get('toast')
+
 	return json(
 		{
 			username: os.userInfo().username,
 			ENV: getEnv(),
 			theme: getTheme(request),
+			toast,
 			honeypotProps: honeypot.getInputProps(),
 			csrfToken,
 		},
 		{
-			headers: csrfCookieHeader
-				? {
-						'set-cookie': csrfCookieHeader,
-				  }
-				: {},
+			headers: combineHeaders(
+				csrfCookieHeader ? { 'set-cookie': csrfCookieHeader } : null,
+				{
+					'set-cookie': await toastSessionStorage.commitSession(cookieSession),
+				},
+			),
 		},
 	)
 }
@@ -88,11 +102,43 @@ const ThemeFormSchema = z.object({
 	theme: z.enum(['light', 'dark']),
 })
 
+export function Document({
+	children,
+	theme,
+	env,
+}: {
+	children: React.ReactNode
+	theme?: Theme
+	env?: Record<string, string>
+}) {
+	return (
+		<html lang="en" className={`${theme} h-full overflow-x-hidden`}>
+			<head>
+				<Meta />
+				<meta name="viewport" content="width=device-width,initial-scale=1" />
+				<meta name="charSet" content="utf-8" />
+				<Links />
+			</head>
+			<body className="flex h-full flex-col justify-between bg-background text-foreground">
+				{children}
+				<script
+					dangerouslySetInnerHTML={{
+						__html: `window.ENV = ${JSON.stringify(env)}`,
+					}}
+				/>
+				<Toaster closeButton position="top-center" />
+				<ScrollRestoration />
+				<Scripts />
+				<LiveReload />
+			</body>
+		</html>
+	)
+}
+
 export function App() {
 	const data = useLoaderData<typeof loader>()
 	const matches = useMatches()
 	const theme = useTheme()
-	console.log(theme)
 	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
 	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
 	return (
@@ -119,23 +165,23 @@ export function App() {
 					</Link>
 				</nav>
 			</header>
+
 			<div className="flex-1">
 				<Outlet />
 			</div>
-			<div className="container mx-auto flex justify-between">
+
+			<div className="container flex justify-between">
 				<Link to="/">
 					<div className="font-light">epic</div>
 					<div className="font-bold">notes</div>
 				</Link>
-				<p>Built with ♥️ by {data.username}</p>
-				<ThemeSwitch userPreference={theme} />
+				<div className="flex items-center gap-2">
+					<p>Built with ♥️ by {data.username}</p>
+					<ThemeSwitch userPreference={theme} />
+				</div>
 			</div>
-			<div className="h-5" />
-			<script
-				dangerouslySetInnerHTML={{
-					__html: `window.ENV = ${JSON.stringify(data.ENV)}`,
-				}}
-			/>
+			<Spacer size="3xs" />
+			{data.toast ? <ShowToast toast={data.toast} /> : null}
 		</Document>
 	)
 }
@@ -202,6 +248,21 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme }) {
 			<ErrorList errors={form.errors} id={form.errorId} />
 		</fetcher.Form>
 	)
+}
+
+function ShowToast({ toast }: { toast: any }) {
+	const { id, type, title, description } = toast as {
+		id: string
+		type: 'success' | 'message'
+		title: string
+		description: string
+	}
+	useEffect(() => {
+		setTimeout(() => {
+			showToast[type](title, { id, description })
+		}, 0)
+	}, [description, id, title, type])
+	return null
 }
 
 export const meta: MetaFunction = () => {

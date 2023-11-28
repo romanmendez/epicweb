@@ -50,6 +50,8 @@ async function seed() {
 	console.timeEnd('🧹 Cleaned up the database...')
 
 	const totalUsers = 5
+	const minNotes = 5
+	const maxNotes = 10
 
 	console.time(`👤 Created ${totalUsers} users...`)
 	const noteImages = await Promise.all([
@@ -110,7 +112,7 @@ async function seed() {
 					image: { create: userImages[n % 10] },
 					notes: {
 						create: Array.from({
-							length: faker.number.int({ min: 1, max: 3 }),
+							length: faker.number.int({ min: minNotes, max: maxNotes }),
 						}).map(() => {
 							return {
 								title: faker.lorem.sentence(1),

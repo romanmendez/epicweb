@@ -25,6 +25,7 @@ import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { z } from 'zod'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import { toastSessionStorage } from '#app/utils/toast.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = await prisma.note.findUnique({
@@ -83,18 +84,18 @@ export async function action({ params, request }: DataFunctionArgs) {
 
 	await prisma.note.delete({ where: { id: note.id } })
 
-	// 🐨 get the cookie header from the request
-	// 🐨 get the toastCookieSession using the toastSessionStorage.getSession
-	// 🐨 set a 'toast' value on the session with the following toast object:
-	// {
-	// 	type: 'success',
-	// 	title: 'Note deleted',
-	// 	description: 'Your note has been deleted',
-	// }
+	const cookie = request.headers.get('cookie')
+	const cookieSession = await toastSessionStorage.getSession(cookie)
+	cookieSession.flash('toast', {
+		type: 'success',
+		title: 'Note deleted',
+		description: 'Your note has been deleted',
+	})
 
 	return redirect(`/users/${note.owner.username}/notes`, {
-		// 🐨 add a headers object here with a 'set-cookie' property
-		// 🐨 use await toastSessionStorage.commitSession to get the cookie header
+		headers: {
+			'set-cookie': await toastSessionStorage.commitSession(cookieSession),
+		},
 	})
 }
 

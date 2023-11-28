@@ -35,10 +35,17 @@ import { parse } from '@conform-to/zod'
 import { z } from 'zod'
 import { Icon } from './components/ui/icon.tsx'
 import { ErrorList } from './components/forms.tsx'
-import { combineHeaders, invariantResponse } from './utils/misc.tsx'
+import {
+	combineHeaders,
+	getUserImgSrc,
+	invariantResponse,
+} from './utils/misc.tsx'
 import { getToast, type Toast } from './utils/toast.server.ts'
+import { sessionStorage } from './utils/session.server.ts'
 import { Spacer } from './components/spacer.tsx'
 import { useEffect } from 'react'
+import { Button } from './components/ui/button.tsx'
+import { prisma } from './utils/db.server.ts'
 
 export const links: LinksFunction = () => {
 	return [
@@ -52,10 +59,25 @@ export const links: LinksFunction = () => {
 export async function loader({ request }: DataFunctionArgs) {
 	const [csrfToken, csrfCookieHeader] = await csrf.commitToken(request)
 	const { toast, headers: toastHeaders } = await getToast(request)
+	const userSession = await sessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const userId = userSession.get('userId')
+	const user = userId
+		? await prisma.user.findUnique({
+				select: {
+					id: true,
+					username: true,
+					name: true,
+					image: { select: { id: true } },
+				},
+				where: { id: userId },
+		  })
+		: null
 
 	return json(
 		{
-			username: os.userInfo().username,
+			user,
 			ENV: getEnv(),
 			theme: getTheme(request),
 			toast,
@@ -135,6 +157,7 @@ export function App() {
 	const data = useLoaderData<typeof loader>()
 	const matches = useMatches()
 	const theme = useTheme()
+	const user = data.user
 	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
 	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
 	return (
@@ -156,9 +179,31 @@ export function App() {
 							<SearchBar status="idle" />
 						</div>
 					)}
-					<Link className="underline" to="/signup">
-						Sign Up
-					</Link>
+					<div className="flex items-center gap-10">
+						{user ? (
+							<div className="flex items-center gap-2">
+								<Button asChild variant="secondary">
+									<Link
+										to={`/users/${user.username}`}
+										className="flex items-center gap-2"
+									>
+										<img
+											className="h-8 w-8 rounded-full object-cover"
+											alt={user.name ?? user.username}
+											src={getUserImgSrc(user.image?.id)}
+										/>
+										<span className="hidden text-body-sm font-bold sm:block">
+											{user.name ?? user.username}
+										</span>
+									</Link>
+								</Button>
+							</div>
+						) : (
+							<Button asChild variant="default" size="sm">
+								<Link to="/login">Log In</Link>
+							</Button>
+						)}
+					</div>
 				</nav>
 			</header>
 
@@ -172,7 +217,7 @@ export function App() {
 					<div className="font-bold">notes</div>
 				</Link>
 				<div className="flex items-center gap-2">
-					<p>Built with ♥️ by {data.username}</p>
+					<p>Built with ♥️ by Román</p>
 					<ThemeSwitch userPreference={theme} />
 				</div>
 			</div>

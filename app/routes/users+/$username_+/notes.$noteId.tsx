@@ -6,7 +6,7 @@ import {
 	useActionData,
 } from '@remix-run/react'
 import { formatDistanceToNow } from 'date-fns'
-import { type DataFunctionArgs, json, redirect } from '@remix-run/node'
+import { type DataFunctionArgs, json } from '@remix-run/node'
 import { prisma } from '#app/utils/db.server.ts'
 import { Button } from '#app/components/ui/button.tsx'
 import {
@@ -25,7 +25,10 @@ import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { z } from 'zod'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { toastSessionStorage } from '#app/utils/toast.server.ts'
+import {
+	type OptionalToast,
+	redirectWithToast,
+} from '#app/utils/toast.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = await prisma.note.findUnique({
@@ -84,19 +87,13 @@ export async function action({ params, request }: DataFunctionArgs) {
 
 	await prisma.note.delete({ where: { id: note.id } })
 
-	const cookie = request.headers.get('cookie')
-	const cookieSession = await toastSessionStorage.getSession(cookie)
-	cookieSession.flash('toast', {
+	const toast: OptionalToast = {
 		type: 'success',
 		title: 'Note deleted',
 		description: 'Your note has been deleted',
-	})
+	}
 
-	return redirect(`/users/${note.owner.username}/notes`, {
-		headers: {
-			'set-cookie': await toastSessionStorage.commitSession(cookieSession),
-		},
-	})
+	await redirectWithToast(`/users/${note.owner.username}/notes`, toast)
 }
 
 export default function NoteRoute() {

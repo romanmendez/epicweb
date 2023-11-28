@@ -36,7 +36,7 @@ import { z } from 'zod'
 import { Icon } from './components/ui/icon.tsx'
 import { ErrorList } from './components/forms.tsx'
 import { combineHeaders, invariantResponse } from './utils/misc.tsx'
-import { toastSessionStorage } from './utils/toast.server.ts'
+import { getToast, type Toast } from './utils/toast.server.ts'
 import { Spacer } from './components/spacer.tsx'
 import { useEffect } from 'react'
 
@@ -51,9 +51,7 @@ export const links: LinksFunction = () => {
 
 export async function loader({ request }: DataFunctionArgs) {
 	const [csrfToken, csrfCookieHeader] = await csrf.commitToken(request)
-	const cookies = request.headers.get('cookie')
-	const cookieSession = await toastSessionStorage.getSession(cookies)
-	const toast = cookieSession.get('toast')
+	const { toast, headers: toastHeaders } = await getToast(request)
 
 	return json(
 		{
@@ -67,9 +65,7 @@ export async function loader({ request }: DataFunctionArgs) {
 		{
 			headers: combineHeaders(
 				csrfCookieHeader ? { 'set-cookie': csrfCookieHeader } : null,
-				{
-					'set-cookie': await toastSessionStorage.commitSession(cookieSession),
-				},
+				toastHeaders,
 			),
 		},
 	)
@@ -250,13 +246,8 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme }) {
 	)
 }
 
-function ShowToast({ toast }: { toast: any }) {
-	const { id, type, title, description } = toast as {
-		id: string
-		type: 'success' | 'message'
-		title: string
-		description: string
-	}
+function ShowToast({ toast }: { toast: Toast }) {
+	const { id, type, title, description } = toast
 	useEffect(() => {
 		setTimeout(() => {
 			showToast[type](title, { id, description })

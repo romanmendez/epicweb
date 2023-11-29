@@ -23,6 +23,13 @@ model User {
   updatedAt DateTime   @updatedAt
   notes     Note[]
   image     UserImage?
+  password  Password?
+}
+
+model Password {
+  hash   String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId String @unique
 }
 
 model Note {

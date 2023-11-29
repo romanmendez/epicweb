@@ -13,6 +13,7 @@ import { z } from 'zod'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
+import { bcrypt } from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
@@ -23,6 +24,7 @@ import {
 	PasswordSchema,
 	UsernameSchema,
 } from '#app/utils/user-validation.ts'
+import { sessionStorage } from '#app/utils/session.server.ts'
 
 const SignupFormSchema = z
 	.object({
@@ -64,6 +66,19 @@ export async function action({ request }: DataFunctionArgs) {
 				})
 				return
 			}
+		}).transform(async data => {
+			const { username, password, name, email } = data
+
+			const user = await prisma.user.create({
+				select: { id: true },
+				data: {
+					name,
+					email: email.toLowerCase(),
+					username: username.toLowerCase(),
+					password: { create: { hash: bcrypt.hashSync(password, 10) } },
+				},
+			})
+			return { ...data, user }
 		}),
 		async: true,
 	})
@@ -71,11 +86,21 @@ export async function action({ request }: DataFunctionArgs) {
 	if (submission.intent !== 'submit') {
 		return json({ status: 'idle', submission } as const)
 	}
-	if (!submission.value) {
+	if (!submission.value?.user) {
 		return json({ status: 'error', submission } as const, { status: 400 })
 	}
 
-	return redirect('/')
+	const { user } = submission.value
+	const cookieSession = await sessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	cookieSession.set('userId', user.id)
+
+	return redirect('/', {
+		headers: {
+			'set-cookie': await sessionStorage.commitSession(cookieSession),
+		},
+	})
 }
 
 export const meta: MetaFunction = () => {

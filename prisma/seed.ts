@@ -2,44 +2,9 @@ import fs from 'node:fs'
 import { faker } from '@faker-js/faker'
 import { PrismaClient } from '@prisma/client'
 import { promiseHash } from 'remix-utils/promise'
-import { UniqueEnforcer } from 'enforce-unique'
+import { createPassword, createUser } from '#tests/db-utils.ts'
 
 const prisma = new PrismaClient()
-const uniqueUsername = new UniqueEnforcer()
-
-export function createUser() {
-	const firstName = faker.person.firstName()
-	const lastName = faker.person.lastName()
-	const username = uniqueUsername
-		.enforce(() =>
-			faker.internet.userName({
-				firstName: firstName.toLowerCase(),
-				lastName: lastName.toLowerCase(),
-			}),
-		)
-		.slice(0, 20)
-		.toLowerCase()
-		.replace(/[^a-z0-9_]/g, '_')
-	return {
-		username,
-		name: `${firstName} ${lastName}`,
-		email: `${username}@example.com`,
-	}
-}
-
-async function img({
-	altText,
-	filepath,
-}: {
-	altText?: string
-	filepath: string
-}) {
-	return {
-		altText,
-		contentType: filepath.endsWith('.png') ? 'image/png' : 'image/jpeg',
-		blob: await fs.promises.readFile(filepath),
-	}
-}
 
 async function seed() {
 	console.log('🌱 Seeding...')
@@ -53,6 +18,19 @@ async function seed() {
 	const minNotes = 5
 	const maxNotes = 10
 
+	async function img({
+		altText,
+		filepath,
+	}: {
+		altText?: string
+		filepath: string
+	}) {
+		return {
+			altText,
+			contentType: filepath.endsWith('.png') ? 'image/png' : 'image/jpeg',
+			blob: await fs.promises.readFile(filepath),
+		}
+	}
 	console.time(`👤 Created ${totalUsers} users...`)
 	const noteImages = await Promise.all([
 		img({
@@ -105,10 +83,14 @@ async function seed() {
 	)
 
 	for (let n = 1; n < totalUsers; n++) {
+		const user = createUser()
 		await prisma.user
 			.create({
 				data: {
-					...createUser(),
+					...user,
+					password: {
+						create: createPassword(user.username),
+					},
 					image: { create: userImages[n % 10] },
 					notes: {
 						create: Array.from({
@@ -173,6 +155,7 @@ async function seed() {
 		data: {
 			email: 'kody@kcd.dev',
 			username: 'kody',
+			password: { create: createPassword('1234') },
 			name: 'Kody',
 			image: { create: kodyImages.kodyUser },
 			notes: {

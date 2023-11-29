@@ -46,6 +46,7 @@ import { Spacer } from './components/spacer.tsx'
 import { useEffect } from 'react'
 import { Button } from './components/ui/button.tsx'
 import { prisma } from './utils/db.server.ts'
+import { useOptionalUser } from './utils/user.ts'
 
 export const links: LinksFunction = () => {
 	return [
@@ -157,7 +158,7 @@ export function App() {
 	const data = useLoaderData<typeof loader>()
 	const matches = useMatches()
 	const theme = useTheme()
-	const user = data.user
+	const user = useOptionalUser()
 	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
 	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
 	return (

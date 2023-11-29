@@ -20,6 +20,7 @@ import { useIsPending } from '#app/utils/misc.tsx'
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
+import { bcrypt } from '#app/utils/auth.server.ts'
 
 const LoginFormSchema = z.object({
 	username: UsernameSchema,
@@ -33,13 +34,12 @@ export async function action({ request }: DataFunctionArgs) {
 	const submission = await parse(formData, {
 		schema: intent =>
 			LoginFormSchema.transform(async (data, ctx) => {
-				console.log(data, 'data in parse')
 				if (intent !== 'submit') return { ...data, user: null }
-				const user = await prisma.user.findUnique({
-					select: { id: true },
+				const userWithPassword = await prisma.user.findUnique({
+					select: { id: true, password: { select: { hash: true } } },
 					where: { username: data.username },
 				})
-				if (!user) {
+				if (!userWithPassword || !userWithPassword.password) {
 					ctx.addIssue({
 						code: 'custom',
 						message: 'Invalid username or password',
@@ -47,8 +47,18 @@ export async function action({ request }: DataFunctionArgs) {
 					return z.NEVER
 				}
 
-				// verify the password (we'll do this later)
-				return { ...data, user }
+				const isValidPassword = await bcrypt.compare(
+					data.password,
+					userWithPassword.password.hash,
+				)
+				if (!isValidPassword) {
+					ctx.addIssue({
+						code: 'custom',
+						message: 'Invalid username or password',
+					})
+					return z.NEVER
+				}
+				return { ...data, user: { id: userWithPassword.id } }
 			}),
 		async: true,
 	})
@@ -56,18 +66,14 @@ export async function action({ request }: DataFunctionArgs) {
 	delete submission.payload.password
 
 	if (submission.intent !== 'submit') {
-		// @ts-expect-error - conform should probably have support for doing this
-		delete submission.value?.password
 		return json({ status: 'idle', submission } as const)
 	}
-	// 🐨 you can change this check to !submission.value?.user
 	if (!submission.value?.user) {
 		return json({ status: 'error', submission } as const, { status: 400 })
 	}
 
 	const { user } = submission.value
 	const session = await sessionStorage.getSession(request.headers.get('cookie'))
-	console.log('session in login', session, session.get('userId'))
 	session.set('userId', user.id)
 
 	return redirect('/', {

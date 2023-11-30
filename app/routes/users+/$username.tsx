@@ -7,6 +7,7 @@ import { Spacer } from '#app/components/spacer.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { useOptionalUser } from '#app/utils/user.ts'
 import { Icon } from '#app/components/ui/icon.tsx'
+import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const { username } = params
@@ -62,7 +63,8 @@ export default function ProfileRoute() {
 						Joined {data.userJoinedDisplay}
 					</p>
 					{isLoggedInUser ? (
-						<Form className="mt-3">
+						<Form method="POST" action="/logout" className="mt-3">
+							<AuthenticityTokenInput />
 							<Button type="submit" variant="link" size="pill">
 								<Icon name="exit" className="scale-125 max-md:scale-150">
 									Logout

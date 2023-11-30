@@ -1,4 +1,3 @@
-import os from 'node:os'
 import { cssBundleHref } from '@remix-run/css-bundle'
 import {
 	type DataFunctionArgs,
@@ -17,6 +16,9 @@ import {
 	type MetaFunction,
 	useMatches,
 	useFetcher,
+	Form,
+	useLocation,
+	useSubmit,
 } from '@remix-run/react'
 import { csrf } from './utils/csrf.server.ts'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
@@ -43,10 +45,20 @@ import {
 import { getToast, type Toast } from './utils/toast.server.ts'
 import { sessionStorage } from './utils/session.server.ts'
 import { Spacer } from './components/spacer.tsx'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from './components/ui/button.tsx'
 import { prisma } from './utils/db.server.ts'
 import { useOptionalUser } from './utils/user.ts'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from './components/ui/alert-dialog.tsx'
 
 export const links: LinksFunction = () => {
 	return [
@@ -60,10 +72,11 @@ export const links: LinksFunction = () => {
 export async function loader({ request }: DataFunctionArgs) {
 	const [csrfToken, csrfCookieHeader] = await csrf.commitToken(request)
 	const { toast, headers: toastHeaders } = await getToast(request)
-	const userSession = await sessionStorage.getSession(
+	const cookieSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
-	const userId = userSession.get('userId')
+	const userId = cookieSession.get('userId')
+
 	const user = userId
 		? await prisma.user.findUnique({
 				select: {
@@ -89,6 +102,9 @@ export async function loader({ request }: DataFunctionArgs) {
 			headers: combineHeaders(
 				csrfCookieHeader ? { 'set-cookie': csrfCookieHeader } : null,
 				toastHeaders,
+				!user
+					? { 'set-cookie': await sessionStorage.destroySession(cookieSession) }
+					: null,
 			),
 		},
 	)
@@ -121,14 +137,16 @@ const ThemeFormSchema = z.object({
 	theme: z.enum(['light', 'dark']),
 })
 
-export function Document({
+function Document({
 	children,
 	theme,
 	env,
+	isLoggedIn = false,
 }: {
 	children: React.ReactNode
 	theme?: Theme
 	env?: Record<string, string>
+	isLoggedIn?: boolean
 }) {
 	return (
 		<html lang="en" className={`${theme} h-full overflow-x-hidden`}>
@@ -145,6 +163,7 @@ export function Document({
 						__html: `window.ENV = ${JSON.stringify(env)}`,
 					}}
 				/>
+				{isLoggedIn ? <LogoutTimer /> : null}
 				<Toaster closeButton position="top-center" />
 				<ScrollRestoration />
 				<Scripts />
@@ -161,8 +180,9 @@ export function App() {
 	const user = useOptionalUser()
 	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
 	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
+
 	return (
-		<Document theme={theme} env={data.ENV}>
+		<Document theme={theme} env={data.ENV} isLoggedIn={Boolean(user)}>
 			<header className="container mx-auto py-6">
 				<nav className="flex items-center justify-between gap-6">
 					{isNotHome ? (
@@ -289,6 +309,67 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme }) {
 			</div>
 			<ErrorList errors={form.errors} id={form.errorId} />
 		</fetcher.Form>
+	)
+}
+
+function LogoutTimer() {
+	const [status, setStatus] = useState<'idle' | 'show-modal'>('idle')
+	const location = useLocation()
+	const submit = useSubmit()
+
+	const logoutTime = 1000 * 60 * 60 // 1 hour
+	const modalTime = logoutTime - 1000 * 60 * 2 // 2 minutes
+	const modalTimer = useRef<ReturnType<typeof setTimeout>>()
+	const logoutTimer = useRef<ReturnType<typeof setTimeout>>()
+
+	const logout = useCallback(() => {
+		submit(null, { method: 'POST', action: '/logout' })
+	}, [submit])
+
+	const cleanupTimers = useCallback(() => {
+		clearTimeout(modalTimer.current)
+		clearTimeout(logoutTimer.current)
+	}, [])
+
+	const resetTimers = useCallback(() => {
+		cleanupTimers()
+		modalTimer.current = setTimeout(() => {
+			setStatus('show-modal')
+		}, modalTime)
+		logoutTimer.current = setTimeout(logout, logoutTime)
+	}, [cleanupTimers, logout, logoutTime, modalTime])
+
+	useEffect(() => resetTimers(), [resetTimers, location.key])
+	useEffect(() => cleanupTimers, [cleanupTimers])
+
+	function closeModal() {
+		setStatus('idle')
+		resetTimers()
+	}
+
+	return (
+		<AlertDialog
+			aria-label="Pending Logout Notification"
+			open={status === 'show-modal'}
+		>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Are you still there?</AlertDialogTitle>
+				</AlertDialogHeader>
+				<AlertDialogDescription>
+					You are going to be logged out due to inactivity. Close this modal to
+					stay logged in.
+				</AlertDialogDescription>
+				<AlertDialogFooter className="flex items-end gap-8">
+					<AlertDialogCancel onClick={closeModal}>
+						Remain Logged In
+					</AlertDialogCancel>
+					<Form method="POST" action="/logout">
+						<AlertDialogAction type="submit">Logout</AlertDialogAction>
+					</Form>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
 	)
 }
 

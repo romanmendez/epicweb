@@ -13,7 +13,7 @@ import { z } from 'zod'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { bcrypt } from '#app/utils/auth.server.ts'
+import { bcrypt, getSessionExpirationDate } from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
@@ -37,6 +37,7 @@ const SignupFormSchema = z
 			required_error:
 				'You must agree to the terms of service and privacy policy',
 		}),
+		remember: z.boolean().optional(),
 	})
 	.superRefine(({ confirmPassword, password }, ctx) => {
 		if (confirmPassword !== password) {
@@ -48,10 +49,22 @@ const SignupFormSchema = z
 		}
 	})
 
+export async function loader({ request }: DataFunctionArgs) {
+	const cookieSession = await sessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const userId = cookieSession.get('userId')
+	if (userId) {
+		throw redirect('/')
+	}
+	return null
+}
+
 export async function action({ request }: DataFunctionArgs) {
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
 	checkHoneypot(formData)
+
 	const submission = await parse(formData, {
 		schema: SignupFormSchema.superRefine(async (data, ctx) => {
 			const existingUser = await prisma.user.findUnique({
@@ -68,7 +81,6 @@ export async function action({ request }: DataFunctionArgs) {
 			}
 		}).transform(async data => {
 			const { username, password, name, email } = data
-
 			const user = await prisma.user.create({
 				select: { id: true },
 				data: {
@@ -86,11 +98,12 @@ export async function action({ request }: DataFunctionArgs) {
 	if (submission.intent !== 'submit') {
 		return json({ status: 'idle', submission } as const)
 	}
+
 	if (!submission.value?.user) {
 		return json({ status: 'error', submission } as const, { status: 400 })
 	}
 
-	const { user } = submission.value
+	const { user, remember } = submission.value
 	const cookieSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
@@ -98,11 +111,12 @@ export async function action({ request }: DataFunctionArgs) {
 
 	return redirect('/', {
 		headers: {
-			'set-cookie': await sessionStorage.commitSession(cookieSession),
+			'set-cookie': await sessionStorage.commitSession(cookieSession, {
+				expires: remember ? getSessionExpirationDate() : undefined,
+			}),
 		},
 	})
 }
-
 export const meta: MetaFunction = () => {
 	return [{ title: 'Setup Epic Notes Account' }]
 }
@@ -198,7 +212,14 @@ export default function SignupRoute() {
 						)}
 						errors={fields.agreeToTermsOfServiceAndPrivacyPolicy.errors}
 					/>
-
+					<CheckboxField
+						labelProps={{
+							htmlFor: fields.remember.id,
+							children: 'Remember me',
+						}}
+						buttonProps={conform.input(fields.remember, { type: 'checkbox' })}
+						errors={fields.remember.errors}
+					/>
 					<ErrorList errors={form.errors} id={form.errorId} />
 
 					<div className="flex items-center justify-between gap-6">

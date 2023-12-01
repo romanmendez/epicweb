@@ -1,32 +1,31 @@
-import { Link, useLoaderData, type MetaFunction, Form } from '@remix-run/react'
-import { type DataFunctionArgs, json } from '@remix-run/node'
-import { prisma } from '#app/utils/db.server.ts'
-import { getUserImgSrc, invariantResponse } from '#app/utils/misc.tsx'
+import { json, type DataFunctionArgs } from '@remix-run/node'
+import { Form, Link, useLoaderData, type MetaFunction } from '@remix-run/react'
+import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { Button } from '#app/components/ui/button.tsx'
-import { useOptionalUser } from '#app/utils/user.ts'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
+import { prisma } from '#app/utils/db.server.ts'
+import { getUserImgSrc, invariantResponse } from '#app/utils/misc.tsx'
+import { useOptionalUser } from '#app/utils/user.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
-	const { username } = params
-	const user = await prisma.user.findUnique({
+	const user = await prisma.user.findFirst({
 		select: {
 			id: true,
 			name: true,
 			username: true,
-			image: { select: { id: true } },
 			createdAt: true,
+			image: { select: { id: true } },
 		},
-		where: { username },
+		where: {
+			username: params.username,
+		},
 	})
-	invariantResponse(user, `${username} username not found`, { status: 404 })
 
-	return json({
-		user,
-		userJoinedDisplay: new Date(user.createdAt).toLocaleDateString(),
-	})
+	invariantResponse(user, 'User not found', { status: 404 })
+
+	return json({ user, userJoinedDisplay: user.createdAt.toLocaleDateString() })
 }
 
 export default function ProfileRoute() {
@@ -34,7 +33,7 @@ export default function ProfileRoute() {
 	const user = data.user
 	const userDisplayName = user.name ?? user.username
 	const loggedInUser = useOptionalUser()
-	const isLoggedInUser = user.id === loggedInUser?.id
+	const isLoggedInUser = data.user.id === loggedInUser?.id
 
 	return (
 		<div className="container mb-48 mt-36 flex flex-col items-center justify-center">
@@ -104,7 +103,10 @@ export const meta: MetaFunction<typeof loader> = ({ data, params }) => {
 	const displayName = data?.user.name ?? params.username
 	return [
 		{ title: `${displayName} | Epic Notes` },
-		{ name: 'description', content: `${displayName}'s profile page` },
+		{
+			name: 'description',
+			content: `Profile of ${displayName} on Epic Notes`,
+		},
 	]
 }
 
@@ -112,8 +114,8 @@ export function ErrorBoundary() {
 	return (
 		<GeneralErrorBoundary
 			statusHandlers={{
-				403: ({ params }) => (
-					<p>You're not authorized to look at {params.sandwichId}</p>
+				404: ({ params }) => (
+					<p>No user with the username "{params.username}" exists</p>
 				),
 			}}
 		/>

@@ -3,6 +3,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { invariantResponse } from '#app/utils/misc.tsx'
 
 export async function loader({ params }: DataFunctionArgs) {
+	console.log('user-image route')
 	invariantResponse(params.imageId, 'Image ID is required', { status: 400 })
 	const image = await prisma.userImage.findUnique({
 		where: { id: params.imageId },

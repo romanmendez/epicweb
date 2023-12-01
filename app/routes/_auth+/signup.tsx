@@ -13,7 +13,12 @@ import { z } from 'zod'
 import { CheckboxField, ErrorList, Field } from '#app/components/forms.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { bcrypt, getSessionExpirationDate } from '#app/utils/auth.server.ts'
+import {
+	getSessionExpirationDate,
+	requireAnonymous,
+	signup,
+	userIdKey,
+} from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
@@ -50,17 +55,12 @@ const SignupFormSchema = z
 	})
 
 export async function loader({ request }: DataFunctionArgs) {
-	const cookieSession = await sessionStorage.getSession(
-		request.headers.get('cookie'),
-	)
-	const userId = cookieSession.get('userId')
-	if (userId) {
-		throw redirect('/')
-	}
-	return null
+	await requireAnonymous(request)
+	return json({})
 }
 
 export async function action({ request }: DataFunctionArgs) {
+	await requireAnonymous(request)
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
 	checkHoneypot(formData)
@@ -80,16 +80,7 @@ export async function action({ request }: DataFunctionArgs) {
 				return
 			}
 		}).transform(async data => {
-			const { username, password, name, email } = data
-			const user = await prisma.user.create({
-				select: { id: true },
-				data: {
-					name,
-					email: email.toLowerCase(),
-					username: username.toLowerCase(),
-					password: { create: { hash: bcrypt.hashSync(password, 10) } },
-				},
-			})
+			const user = await signup(data)
 			return { ...data, user }
 		}),
 		async: true,
@@ -107,7 +98,7 @@ export async function action({ request }: DataFunctionArgs) {
 	const cookieSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
-	cookieSession.set('userId', user.id)
+	cookieSession.set(userIdKey, user.id)
 
 	return redirect('/', {
 		headers: {

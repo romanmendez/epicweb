@@ -19,8 +19,12 @@ import { checkHoneypot } from '#app/utils/honeypot.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
-import { prisma } from '#app/utils/db.server.ts'
-import { bcrypt, getSessionExpirationDate } from '#app/utils/auth.server.ts'
+import {
+	getSessionExpirationDate,
+	login,
+	requireAnonymous,
+	userIdKey,
+} from '#app/utils/auth.server.ts'
 
 const LoginFormSchema = z.object({
 	username: UsernameSchema,
@@ -28,7 +32,13 @@ const LoginFormSchema = z.object({
 	remember: z.boolean().optional(),
 })
 
+export async function loader({ request }: DataFunctionArgs) {
+	await requireAnonymous(request)
+	return json({})
+}
+
 export async function action({ request }: DataFunctionArgs) {
+	await requireAnonymous(request)
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
 	checkHoneypot(formData)
@@ -37,30 +47,16 @@ export async function action({ request }: DataFunctionArgs) {
 		schema: intent =>
 			LoginFormSchema.transform(async (data, ctx) => {
 				if (intent !== 'submit') return { ...data, user: null }
-				const userWithPassword = await prisma.user.findUnique({
-					select: { id: true, password: { select: { hash: true } } },
-					where: { username: data.username },
-				})
-				if (!userWithPassword || !userWithPassword.password) {
-					ctx.addIssue({
-						code: 'custom',
-						message: 'Invalid username or password',
-					})
-					return z.NEVER
-				}
 
-				const isValidPassword = await bcrypt.compare(
-					data.password,
-					userWithPassword.password.hash,
-				)
-				if (!isValidPassword) {
+				const user = await login(data)
+				if (!user) {
 					ctx.addIssue({
 						code: 'custom',
 						message: 'Invalid username or password',
 					})
 					return z.NEVER
 				}
-				return { ...data, user: { id: userWithPassword.id } }
+				return { ...data, user }
 			}),
 		async: true,
 	})
@@ -76,7 +72,7 @@ export async function action({ request }: DataFunctionArgs) {
 
 	const { user, remember } = submission.value
 	const session = await sessionStorage.getSession(request.headers.get('cookie'))
-	session.set('userId', user.id)
+	session.set(userIdKey, user.id)
 
 	return redirect('/', {
 		headers: {

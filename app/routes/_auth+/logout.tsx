@@ -1,20 +1,10 @@
-import { redirect } from '@remix-run/node'
-import { sessionStorage } from '#app/utils/session.server.ts'
+import { type DataFunctionArgs, redirect } from '@remix-run/node'
+import { logout } from '#app/utils/auth.server.ts'
 
 export async function loader() {
 	return redirect('/')
 }
 
-export async function action() {
-	const cookieSession = await sessionStorage.getSession()
-	return redirect(
-		'/',
-		cookieSession
-			? {
-					headers: {
-						'set-cookie': await sessionStorage.destroySession(cookieSession),
-					},
-			  }
-			: undefined,
-	)
+export async function action({ request }: DataFunctionArgs) {
+	throw await logout({ request })
 }

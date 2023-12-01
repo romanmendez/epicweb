@@ -8,7 +8,7 @@ import { ErrorList, Field } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
+import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	getUserImgSrc,
@@ -58,7 +58,7 @@ const deleteDataActionIntent = 'delete-data'
 export async function action({ request }: DataFunctionArgs) {
 	const userId = 'some_user_id' // we'll take care of this next
 	const formData = await request.formData()
-	await validateCSRF(formData, request.headers)
+	await validateCSRFToken(formData, request.headers)
 	const intent = formData.get('intent')
 	switch (intent) {
 		case profileUpdateActionIntent: {

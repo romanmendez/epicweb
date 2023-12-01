@@ -16,7 +16,7 @@ import { ErrorList } from '#app/components/forms.tsx'
 import { Button } from '#app/components/ui/button.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { validateCSRF } from '#app/utils/csrf.server.ts'
+import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import {
 	getUserImgSrc,
@@ -60,7 +60,7 @@ export async function action({ request }: DataFunctionArgs) {
 		unstable_createMemoryUploadHandler({ maxPartSize: MAX_SIZE }),
 	)
 
-	await validateCSRF(formData, request.headers)
+	await validateCSRFToken(formData, request.headers)
 
 	const intent = formData.get('intent')
 	if (intent === 'delete') {

@@ -84,6 +84,7 @@ export async function loader({ request }: DataFunctionArgs) {
 					username: true,
 					name: true,
 					image: { select: { id: true } },
+					email: true,
 				},
 				where: { id: userId },
 		  })

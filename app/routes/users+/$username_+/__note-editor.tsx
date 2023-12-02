@@ -33,6 +33,7 @@ import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { type Note, type NoteImage } from '@prisma/client'
 import { useRef, useState } from 'react'
+import { requireUser } from '#app/utils/auth.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = await prisma.note.findFirst({
@@ -107,6 +108,10 @@ const NoteEditorSchema = z.object({
 })
 
 export async function action({ request, params }: DataFunctionArgs) {
+	const user = await requireUser(request)
+	invariantResponse(user?.username === params.username, 'Forbidden', {
+		status: 403,
+	})
 	const uploadHandler = createMemoryUploadHandler({
 		maxPartSize: MAX_UPLOAD_SIZE,
 	})

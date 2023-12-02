@@ -3,20 +3,16 @@ import { Link, Outlet, useMatches } from '@remix-run/react'
 import { z } from 'zod'
 import { Spacer } from '#app/components/spacer.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
-import { prisma } from '#app/utils/db.server.ts'
 import { cn, invariantResponse } from '#app/utils/misc.tsx'
 import { useUser } from '#app/utils/user.ts'
+import { requireUser } from '#app/utils/auth.server.ts'
 
 export const handle = {
 	breadcrumb: <Icon name="file-text">Edit Profile</Icon>,
 }
 
 export async function loader({ request }: DataFunctionArgs) {
-	const userId = 'some_user_id' // we'll take care of this next
-	const user = await prisma.user.findUnique({
-		where: { id: userId },
-		select: { username: true },
-	})
+	const user = await requireUser(request)
 	invariantResponse(user, 'User not found', { status: 404 })
 	return json({})
 }

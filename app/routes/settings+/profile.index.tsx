@@ -1,7 +1,7 @@
 import { conform, useForm } from '@conform-to/react'
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { json, redirect, type DataFunctionArgs } from '@remix-run/node'
-import { Link, useFetcher, useLoaderData } from '@remix-run/react'
+import { Link, useFetcher } from '@remix-run/react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { z } from 'zod'
 import { ErrorList, Field } from '#app/components/forms.tsx'
@@ -20,6 +20,8 @@ import {
 	NameSchema,
 	UsernameSchema,
 } from '#app/utils/user-validation.ts'
+import { requireUser, requireUserId } from '#app/utils/auth.server.ts'
+import { useUser } from '#app/utils/user.ts'
 
 const ProfileFormSchema = z.object({
 	name: NameSchema.optional(),
@@ -28,23 +30,10 @@ const ProfileFormSchema = z.object({
 })
 
 export async function loader({ request }: DataFunctionArgs) {
-	const userId = 'some_user_id' // we'll take care of this next
-	const user = await prisma.user.findUnique({
-		where: { id: userId },
-		select: {
-			id: true,
-			name: true,
-			username: true,
-			email: true,
-			image: {
-				select: { id: true },
-			},
-		},
-	})
-
+	const user = await requireUser(request)
 	invariantResponse(user, 'User not found', { status: 404 })
 
-	return json({ user })
+	return json({})
 }
 
 type ProfileActionArgs = {
@@ -56,7 +45,7 @@ const profileUpdateActionIntent = 'update-profile'
 const deleteDataActionIntent = 'delete-data'
 
 export async function action({ request }: DataFunctionArgs) {
-	const userId = 'some_user_id' // we'll take care of this next
+	const userId = await requireUserId(request)
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
 	const intent = formData.get('intent')
@@ -74,15 +63,15 @@ export async function action({ request }: DataFunctionArgs) {
 }
 
 export default function EditUserProfile() {
-	const data = useLoaderData<typeof loader>()
+	const user = useUser()
 
 	return (
 		<div className="flex flex-col gap-12">
 			<div className="flex justify-center">
 				<div className="relative h-52 w-52">
 					<img
-						src={getUserImgSrc(data.user.image?.id)}
-						alt={data.user.username}
+						src={getUserImgSrc(user.image?.id)}
+						alt={user.username}
 						className="h-full w-full rounded-full object-cover"
 					/>
 					<Button
@@ -175,7 +164,7 @@ async function profileUpdateAction({ userId, formData }: ProfileActionArgs) {
 }
 
 function UpdateProfile() {
-	const data = useLoaderData<typeof loader>()
+	const user = useUser()
 
 	const fetcher = useFetcher<typeof profileUpdateAction>()
 
@@ -187,9 +176,9 @@ function UpdateProfile() {
 			return parse(formData, { schema: ProfileFormSchema })
 		},
 		defaultValue: {
-			username: data.user.username,
-			name: data.user.name ?? '',
-			email: data.user.email,
+			username: user.username,
+			name: user.name ?? '',
+			email: user.email,
 		},
 	})
 

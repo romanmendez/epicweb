@@ -12,12 +12,17 @@ export const getSessionExpirationDate = () =>
 
 export const userIdKey = 'userId'
 
+export function getRedirectRoute(request: Request) {
+	const url = new URL(request.url)
+	return url.searchParams.get('redirectTo')
+}
+
 export async function getUserId(request: Request) {
 	const cookieSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
 	const userId = cookieSession.get(userIdKey)
-	if (!userId) return null
+	if (!userId) return undefined
 	const user = await prisma.user.findUnique({
 		select: { id: true },
 		where: { id: userId },
@@ -26,6 +31,41 @@ export async function getUserId(request: Request) {
 		throw await logout({ request })
 	}
 	return user.id
+}
+
+export async function requireUserId(
+	request: Request,
+	{ redirectTo }: { redirectTo?: string | null } = {},
+) {
+	const requestUrl = new URL(request.url)
+	redirectTo =
+		redirectTo === null
+			? null
+			: redirectTo ?? `${requestUrl.pathname}${requestUrl.searchParams}`
+	const loginParams = redirectTo ? new URLSearchParams({ redirectTo }) : null
+	const loginRedirect = ['/login', loginParams?.toString()]
+		.filter(Boolean)
+		.join('?')
+	const userId = await getUserId(request)
+	if (!userId) {
+		throw redirect(loginRedirect)
+	}
+	return userId
+}
+
+export async function requireUser(
+	request: Request,
+	{ redirectTo }: { redirectTo?: string | null } = {},
+) {
+	const userId = await requireUserId(request, { redirectTo })
+	const user = await prisma.user.findUnique({
+		where: { id: userId },
+		select: { username: true },
+	})
+	if (!user) {
+		await logout({ request })
+	}
+	return user
 }
 
 export async function requireAnonymous(request: Request) {

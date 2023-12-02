@@ -3,10 +3,15 @@ import { useLoaderData } from '@remix-run/react'
 import { prisma } from '#app/utils/db.server.ts'
 import { invariantResponse } from '#app/utils/misc.tsx'
 import { NoteEditor, action } from './__note-editor.tsx'
+import { requireUser } from '#app/utils/auth.server.ts'
 
 export { action }
 
-export async function loader({ params }: DataFunctionArgs) {
+export async function loader({ request, params }: DataFunctionArgs) {
+	const user = await requireUser(request)
+	invariantResponse(user?.username === params.username, 'Forbidden', {
+		status: 403,
+	})
 	const note = await prisma.note.findFirst({
 		select: {
 			id: true,

@@ -30,6 +30,7 @@ import {
 	redirectWithToast,
 } from '#app/utils/toast.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
+import { requireUser } from '#app/utils/auth.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = await prisma.note.findUnique({
@@ -66,6 +67,10 @@ const DeleteFormSchema = z.object({
 })
 
 export async function action({ params, request }: DataFunctionArgs) {
+	const user = await requireUser(request)
+	invariantResponse(user?.username === params.username, 'Forbidden', {
+		status: 403,
+	})
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
 	const submission = parse(formData, {
@@ -100,7 +105,7 @@ export async function action({ params, request }: DataFunctionArgs) {
 export default function NoteRoute() {
 	const data = useLoaderData<typeof loader>()
 	const user = useOptionalUser()
-	const isOwner = user.id === data.note.ownerId
+	const isOwner = user?.id === data.note.ownerId
 
 	return (
 		<div className="absolute inset-0 flex flex-col px-10">

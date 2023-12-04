@@ -5,15 +5,15 @@ import { Spacer } from '#app/components/spacer.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { cn, invariantResponse } from '#app/utils/misc.tsx'
 import { useUser } from '#app/utils/user.ts'
-import { requireUser } from '#app/utils/auth.server.ts'
+import { requireUserId } from '#app/utils/auth.server.ts'
 
 export const handle = {
 	breadcrumb: <Icon name="file-text">Edit Profile</Icon>,
 }
 
 export async function loader({ request }: DataFunctionArgs) {
-	const user = await requireUser(request)
-	invariantResponse(user, 'User not found', { status: 404 })
+	const useId = await requireUserId(request)
+	invariantResponse(useId, 'User not found', { status: 404 })
 	return json({})
 }
 const BreadcrumbHandleMatch = z.object({

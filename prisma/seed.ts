@@ -88,6 +88,7 @@ async function seed() {
 			.create({
 				data: {
 					...user,
+					roles: { connect: { name: 'user' } },
 					password: {
 						create: createPassword(user.username),
 					},
@@ -156,6 +157,7 @@ async function seed() {
 			email: 'kody@kcd.dev',
 			username: 'kody',
 			password: { create: createPassword('12345678') },
+			roles: { connect: [{ name: 'user' }, { name: 'admin' }] },
 			name: 'Kody',
 			image: { create: kodyImages.kodyUser },
 			notes: {

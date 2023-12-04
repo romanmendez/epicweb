@@ -59,6 +59,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from './components/ui/alert-dialog.tsx'
+import { userHasRole } from './utils/permissions.ts'
 
 export const links: LinksFunction = () => {
 	return [
@@ -85,6 +86,15 @@ export async function loader({ request }: DataFunctionArgs) {
 					name: true,
 					image: { select: { id: true } },
 					email: true,
+					createdAt: true,
+					roles: {
+						select: {
+							name: true,
+							permissions: {
+								select: { entity: true, access: true, action: true },
+							},
+						},
+					},
 				},
 				where: { id: userId },
 		  })
@@ -179,6 +189,7 @@ export function App() {
 	const matches = useMatches()
 	const theme = useTheme()
 	const user = useOptionalUser()
+	const userIsAdmin = userHasRole(user, 'admin')
 	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
 	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
 
@@ -219,6 +230,15 @@ export function App() {
 										</span>
 									</Link>
 								</Button>
+								{userIsAdmin ? (
+									<Button asChild variant="secondary">
+										<Link to="/admin">
+											<Icon name="backpack">
+												<span className="hidden sm:block">Admin</span>
+											</Icon>
+										</Link>
+									</Button>
+								) : null}
 							</div>
 						) : (
 							<Button asChild variant="default" size="sm">

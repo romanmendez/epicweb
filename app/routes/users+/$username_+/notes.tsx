@@ -94,9 +94,7 @@ export function ErrorBoundary() {
 	return (
 		<GeneralErrorBoundary
 			statusHandlers={{
-				404: ({ params }) => (
-					<p>You're not authorized to look at {params.sandwichId}</p>
-				),
+				404: () => <p>You're not authorized to look at this note.</p>,
 			}}
 		/>
 	)

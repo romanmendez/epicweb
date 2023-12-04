@@ -20,7 +20,7 @@ import {
 	NameSchema,
 	UsernameSchema,
 } from '#app/utils/user-validation.ts'
-import { requireUser, requireUserId } from '#app/utils/auth.server.ts'
+import { requireUserId } from '#app/utils/auth.server.ts'
 import { useUser } from '#app/utils/user.ts'
 
 const ProfileFormSchema = z.object({
@@ -30,8 +30,8 @@ const ProfileFormSchema = z.object({
 })
 
 export async function loader({ request }: DataFunctionArgs) {
-	const user = await requireUser(request)
-	invariantResponse(user, 'User not found', { status: 404 })
+	const userId = await requireUserId(request)
+	invariantResponse(userId, 'User not found', { status: 404 })
 
 	return json({})
 }

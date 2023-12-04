@@ -22,7 +22,7 @@ export async function getUserId(request: Request) {
 		request.headers.get('cookie'),
 	)
 	const userId = cookieSession.get(userIdKey)
-	if (!userId) return undefined
+	if (!userId) return null
 	const user = await prisma.user.findUnique({
 		select: { id: true },
 		where: { id: userId },
@@ -31,6 +31,14 @@ export async function getUserId(request: Request) {
 		throw await logout({ request })
 	}
 	return user.id
+}
+
+export async function getUserRoles(userId: string) {
+	const user = await prisma.user.findUnique({
+		select: { roles: true },
+		where: { id: userId },
+	})
+	return user?.roles
 }
 
 export async function requireUserId(
@@ -46,6 +54,7 @@ export async function requireUserId(
 	const loginRedirect = ['/login', loginParams?.toString()]
 		.filter(Boolean)
 		.join('?')
+
 	const userId = await getUserId(request)
 	if (!userId) {
 		throw redirect(loginRedirect)
@@ -53,14 +62,11 @@ export async function requireUserId(
 	return userId
 }
 
-export async function requireUser(
-	request: Request,
-	{ redirectTo }: { redirectTo?: string | null } = {},
-) {
-	const userId = await requireUserId(request, { redirectTo })
+export async function requireUser(request: Request) {
+	const userId = await requireUserId(request)
 	const user = await prisma.user.findUnique({
 		where: { id: userId },
-		select: { username: true },
+		select: { username: true, id: true },
 	})
 	if (!user) {
 		await logout({ request })
@@ -104,6 +110,7 @@ export async function signup({
 			email: email.toLowerCase(),
 			username: username.toLowerCase(),
 			name,
+			roles: { connect: { name: 'user' } },
 			password: {
 				create: {
 					hash: hashedPassword,

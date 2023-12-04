@@ -30,7 +30,10 @@ import {
 	redirectWithToast,
 } from '#app/utils/toast.server.ts'
 import { useOptionalUser } from '#app/utils/user.ts'
-import { requireUser } from '#app/utils/auth.server.ts'
+import {
+	requireUserWithPermissions,
+	userHasPermission,
+} from '#app/utils/permissions.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = await prisma.note.findUnique({
@@ -66,11 +69,8 @@ const DeleteFormSchema = z.object({
 	noteId: z.string(),
 })
 
-export async function action({ params, request }: DataFunctionArgs) {
-	const user = await requireUser(request)
-	invariantResponse(user?.username === params.username, 'Forbidden', {
-		status: 403,
-	})
+export async function action({ request }: DataFunctionArgs) {
+	const userId = await requireUserWithPermissions(request, 'delete:note:own')
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
 	const submission = parse(formData, {
@@ -86,11 +86,16 @@ export async function action({ params, request }: DataFunctionArgs) {
 	const { noteId } = submission.value
 
 	const note = await prisma.note.findFirst({
-		select: { id: true, owner: { select: { username: true } } },
-		where: { id: noteId, owner: { username: params.username } },
+		select: { id: true, ownerId: true, owner: { select: { username: true } } },
+		where: { id: noteId },
 	})
 	invariantResponse(note, 'Not found', { status: 404 })
 
+	const isOwner = note.ownerId === userId
+	await requireUserWithPermissions(
+		request,
+		isOwner ? 'delete:note:own' : 'delete:note:any',
+	)
 	await prisma.note.delete({ where: { id: note.id } })
 
 	const toast: OptionalToast = {
@@ -99,13 +104,18 @@ export async function action({ params, request }: DataFunctionArgs) {
 		description: 'Your note has been deleted',
 	}
 
-	await redirectWithToast(`/users/${note.owner.username}/notes`, toast)
+	throw await redirectWithToast(`/users/${note.owner.username}/notes`, toast)
 }
 
 export default function NoteRoute() {
 	const data = useLoaderData<typeof loader>()
 	const user = useOptionalUser()
 	const isOwner = user?.id === data.note.ownerId
+	const canDelete = userHasPermission(
+		user,
+		isOwner ? 'delete:note:own' : 'delete:note:any',
+	)
+	const displayBar = canDelete || isOwner
 
 	return (
 		<div className="absolute inset-0 flex flex-col px-10">
@@ -128,7 +138,7 @@ export default function NoteRoute() {
 					{data.note.content}
 				</p>
 			</div>
-			{isOwner ? (
+			{displayBar ? (
 				<div className={floatingToolbarClassName}>
 					<span className="text-sm text-foreground/90 max-[524px]:hidden">
 						<Icon name="clock" className="scale-125">
@@ -141,11 +151,13 @@ export default function NoteRoute() {
 							asChild
 							className="min-[525px]:max-md:aspect-square min-[525px]:max-md:px-0"
 						>
-							<Link to="edit">
-								<Icon name="pencil-1" className="scale-125 max-md:scale-150">
-									<span className="max-md:hidden">Edit</span>
-								</Icon>
-							</Link>
+							{isOwner ? (
+								<Link to="edit">
+									<Icon name="pencil-1" className="scale-125 max-md:scale-150">
+										<span className="max-md:hidden">Edit</span>
+									</Icon>
+								</Link>
+							) : null}
 						</Button>
 					</div>
 				</div>
@@ -214,6 +226,7 @@ export function ErrorBoundary() {
 	return (
 		<GeneralErrorBoundary
 			statusHandlers={{
+				403: () => <p>You are unauthorized to perform this action.</p>,
 				404: ({ params }) => (
 					<p>No note was found with the ID {params.noteId}</p>
 				),

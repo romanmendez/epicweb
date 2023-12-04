@@ -34,6 +34,7 @@ import {
 	requireUserWithPermissions,
 	userHasPermission,
 } from '#app/utils/permissions.ts'
+import { getUserId } from '#app/utils/auth.server.ts'
 
 export async function loader({ params }: DataFunctionArgs) {
 	const note = await prisma.note.findUnique({
@@ -70,7 +71,7 @@ const DeleteFormSchema = z.object({
 })
 
 export async function action({ request }: DataFunctionArgs) {
-	const userId = await requireUserWithPermissions(request, 'delete:note:own')
+	const userId = await getUserId(request)
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
 	const submission = parse(formData, {

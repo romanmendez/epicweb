@@ -43,7 +43,6 @@ import {
 	invariantResponse,
 } from './utils/misc.tsx'
 import { getToast, type Toast } from './utils/toast.server.ts'
-import { sessionStorage } from './utils/session.server.ts'
 import { Spacer } from './components/spacer.tsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from './components/ui/button.tsx'
@@ -60,6 +59,7 @@ import {
 	AlertDialogTitle,
 } from './components/ui/alert-dialog.tsx'
 import { userHasRole } from './utils/permissions.ts'
+import { getUserId } from './utils/auth.server.ts'
 
 export const links: LinksFunction = () => {
 	return [
@@ -72,12 +72,10 @@ export const links: LinksFunction = () => {
 
 export async function loader({ request }: DataFunctionArgs) {
 	const [csrfToken, csrfCookieHeader] = await csrf.commitToken(request)
+	const honeypotProps = honeypot.getInputProps()
 	const { toast, headers: toastHeaders } = await getToast(request)
-	const cookieSession = await sessionStorage.getSession(
-		request.headers.get('cookie'),
-	)
-	const userId = cookieSession.get('userId')
 
+	const userId = await getUserId(request)
 	const user = userId
 		? await prisma.user.findUnique({
 				select: {
@@ -106,16 +104,13 @@ export async function loader({ request }: DataFunctionArgs) {
 			ENV: getEnv(),
 			theme: getTheme(request),
 			toast,
-			honeypotProps: honeypot.getInputProps(),
+			honeypotProps,
 			csrfToken,
 		},
 		{
 			headers: combineHeaders(
 				csrfCookieHeader ? { 'set-cookie': csrfCookieHeader } : null,
 				toastHeaders,
-				!user
-					? { 'set-cookie': await sessionStorage.destroySession(cookieSession) }
-					: null,
 			),
 		},
 	)

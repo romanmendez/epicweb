@@ -17,7 +17,7 @@ import {
 	getSessionExpirationDate,
 	requireAnonymous,
 	signup,
-	userIdKey,
+	sessionIdKey,
 } from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
@@ -80,8 +80,8 @@ export async function action({ request }: DataFunctionArgs) {
 				return
 			}
 		}).transform(async data => {
-			const user = await signup(data)
-			return { ...data, user }
+			const session = await signup(data)
+			return { ...data, session }
 		}),
 		async: true,
 	})
@@ -90,15 +90,15 @@ export async function action({ request }: DataFunctionArgs) {
 		return json({ status: 'idle', submission } as const)
 	}
 
-	if (!submission.value?.user) {
+	if (!submission.value?.session) {
 		return json({ status: 'error', submission } as const, { status: 400 })
 	}
 
-	const { user, remember } = submission.value
+	const { session, remember } = submission.value
 	const cookieSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
-	cookieSession.set(userIdKey, user.id)
+	cookieSession.set(sessionIdKey, session.id)
 
 	return redirect('/', {
 		headers: {

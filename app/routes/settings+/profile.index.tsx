@@ -1,7 +1,7 @@
 import { conform, useForm } from '@conform-to/react'
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
 import { json, redirect, type DataFunctionArgs } from '@remix-run/node'
-import { Link, useFetcher } from '@remix-run/react'
+import { Link, useFetcher, useLoaderData } from '@remix-run/react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { z } from 'zod'
 import { ErrorList, Field } from '#app/components/forms.tsx'
@@ -20,8 +20,9 @@ import {
 	NameSchema,
 	UsernameSchema,
 } from '#app/utils/user-validation.ts'
-import { requireUserId } from '#app/utils/auth.server.ts'
+import { requireUserId, sessionIdKey } from '#app/utils/auth.server.ts'
 import { useUser } from '#app/utils/user.ts'
+import { sessionStorage } from '#app/utils/session.server.ts'
 
 const ProfileFormSchema = z.object({
 	name: NameSchema.optional(),
@@ -31,9 +32,33 @@ const ProfileFormSchema = z.object({
 
 export async function loader({ request }: DataFunctionArgs) {
 	const userId = await requireUserId(request)
-	invariantResponse(userId, 'User not found', { status: 404 })
+	const user = await prisma.user.findUnique({
+		where: { id: userId },
+		select: {
+			id: true,
+			name: true,
+			username: true,
+			email: true,
+			image: {
+				select: { id: true },
+			},
+			_count: {
+				select: {
+					sessions: {
+						where: {
+							expirationDate: {
+								gte: new Date(Date.now()),
+							},
+						},
+					},
+				},
+			},
+		},
+	})
 
-	return json({})
+	invariantResponse(user, 'User not found', { status: 404 })
+
+	return json({ user })
 }
 
 type ProfileActionArgs = {
@@ -42,6 +67,7 @@ type ProfileActionArgs = {
 	formData: FormData
 }
 const profileUpdateActionIntent = 'update-profile'
+const signOutOfSessionsActionIntent = 'sign-out-of-sessions'
 const deleteDataActionIntent = 'delete-data'
 
 export async function action({ request }: DataFunctionArgs) {
@@ -55,6 +81,9 @@ export async function action({ request }: DataFunctionArgs) {
 		}
 		case deleteDataActionIntent: {
 			return deleteDataAction({ request, userId, formData })
+		}
+		case signOutOfSessionsActionIntent: {
+			return signOutOfSessionsAction({ request, userId, formData })
 		}
 		default: {
 			throw new Response(`Invalid intent "${intent}"`, { status: 400 })
@@ -107,6 +136,7 @@ export default function EditUserProfile() {
 						<Icon name="download">Download your data</Icon>
 					</a>
 				</div>
+				<SignOutOfSessions />
 				<DeleteData />
 			</div>
 		</div>
@@ -227,6 +257,55 @@ function UpdateProfile() {
 				</StatusButton>
 			</div>
 		</fetcher.Form>
+	)
+}
+
+async function signOutOfSessionsAction({ request, userId }: ProfileActionArgs) {
+	const cookieSession = await sessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const currentSession = cookieSession.get(sessionIdKey)
+	await prisma.session.deleteMany({
+		where: { id: { not: currentSession }, userId },
+	})
+	return json({ status: 'success' } as const)
+}
+
+function SignOutOfSessions() {
+	const data = useLoaderData<typeof loader>()
+	const dc = useDoubleCheck()
+
+	const fetcher = useFetcher<typeof signOutOfSessionsAction>()
+	const otherSessionsCount = data.user._count.sessions - 1
+	return (
+		<div>
+			{otherSessionsCount ? (
+				<fetcher.Form method="POST">
+					<AuthenticityTokenInput />
+					<StatusButton
+						{...dc.getButtonProps({
+							type: 'submit',
+							name: 'intent',
+							value: signOutOfSessionsActionIntent,
+						})}
+						variant={dc.doubleCheck ? 'destructive' : 'default'}
+						status={
+							fetcher.state !== 'idle'
+								? 'pending'
+								: fetcher.data?.status ?? 'idle'
+						}
+					>
+						<Icon name="avatar">
+							{dc.doubleCheck
+								? `Are you sure?`
+								: `Sign out of ${otherSessionsCount} other sessions`}
+						</Icon>
+					</StatusButton>
+				</fetcher.Form>
+			) : (
+				<Icon name="avatar">This is your only session</Icon>
+			)}
+		</div>
 	)
 }
 

@@ -22,7 +22,7 @@ import {
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
-import { combineHeaders, useIsPending } from '#app/utils/misc.tsx'
+import { combineHeaders, invariant, useIsPending } from '#app/utils/misc.tsx'
 import {
 	NameSchema,
 	PasswordSchema,
@@ -30,6 +30,7 @@ import {
 } from '#app/utils/user-validation.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
+import { VerifyFunctionArgs } from './verify.tsx'
 
 export const onboardingEmailSessionKey = 'onboardingEmail'
 
@@ -56,6 +57,7 @@ const SignupFormSchema = z
 	})
 
 async function requireOnboardingEmail(request: Request) {
+	await requireAnonymous(request)
 	const verifySession = await verifySessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
@@ -131,6 +133,23 @@ export async function action({ request }: DataFunctionArgs) {
 		),
 	})
 }
+
+export async function handleVerification({
+	request,
+	submission,
+}: VerifyFunctionArgs) {
+	invariant(submission.value, 'submission.value should be defined by now')
+	const verifySession = await verifySessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	verifySession.set(onboardingEmailSessionKey, submission.value.target)
+	return redirect('/onboarding', {
+		headers: {
+			'set-cookie': await verifySessionStorage.commitSession(verifySession),
+		},
+	})
+}
+
 export const meta: MetaFunction = () => {
 	return [{ title: 'Setup Epic Notes Account' }]
 }

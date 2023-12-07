@@ -17,11 +17,11 @@ import { requireAnonymous } from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
-import { useIsPending } from '#app/utils/misc.tsx'
+import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx'
 import { EmailSchema } from '#app/utils/user-validation.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
-import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { onboardingEmailSessionKey } from './onboarding.tsx'
+import { generateTOTP } from '@epic-web/totp'
+import { codeQueryParam, targetQueryParam, typeQueryParam } from './verify.tsx'
 
 const SignupSchema = z.object({
 	email: EmailSchema,
@@ -56,34 +56,47 @@ export async function action({ request }: DataFunctionArgs) {
 		}),
 		async: true,
 	})
-
 	if (submission.intent !== 'submit') {
 		return json({ status: 'idle', submission } as const)
 	}
-
 	if (!submission.value?.email) {
 		return json({ status: 'error', submission } as const, { status: 400 })
 	}
 
+	const type = 'onboarding'
 	const { email } = submission.value
+	const { otp, ...verificationConfig } = generateTOTP({
+		algorithm: 'SHA256',
+		period: 10 * 60, // 10 minutes
+	})
+	const verificationData = {
+		type,
+		target: email,
+		...verificationConfig,
+		expiresAt: new Date(Date.now() + verificationConfig.period * 1000),
+	}
+	await prisma.verification.upsert({
+		where: { target_type: { target: email, type } },
+		create: verificationData,
+		update: verificationData,
+	})
+
+	const redirectToUrl = new URL(`${getDomainUrl(request)}/verify`)
+	redirectToUrl.searchParams.set(typeQueryParam, type)
+	redirectToUrl.searchParams.set(targetQueryParam, email)
+	const verifyUrl = new URL(redirectToUrl)
+	verifyUrl.searchParams.set(codeQueryParam, otp)
+
 	const response = await sendEmail({
 		to: email,
-		subject: 'Hello World',
-		text: 'This is the plain text version',
+		subject: 'Welcome to Epic Notes!',
+		text: `Here is your code: ${otp}. Or you can click on this: ${verifyUrl.toString()}`,
 		html: '<p>This is the HTML version</p>',
 	})
 	console.log(response)
-	const verifySession = await verifySessionStorage.getSession(
-		request.headers.get('cookie'),
-	)
-	verifySession.set(onboardingEmailSessionKey, email)
 
 	if (response.status === 'success') {
-		return redirect('/onboarding', {
-			headers: {
-				'set-cookie': await verifySessionStorage.commitSession(verifySession),
-			},
-		})
+		return redirect(redirectToUrl.toString())
 	} else {
 		return json({ status: 'error', submission } as const, { status: 400 })
 	}

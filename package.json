@@ -31,6 +31,7 @@
     "/server-build"
   ],
   "dependencies": {
+    "@epic-web/totp": "^1.1.1",
     "@kentcdodds/workshop-app": "^2.54.4",
     "@mswjs/data": "^0.14.0",
     "@prisma/client": "^5.6.0",

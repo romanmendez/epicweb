@@ -104,3 +104,18 @@ model Role {
   permissions Permission[]
   users       User[]
 }
+
+model Verification {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  type      String
+  target    String
+  secret    String
+  algorithm String
+  digits    Int
+  period    Int
+  charSet   String
+  expiresAt DateTime?
+
+  @@unique([target, type])
+}

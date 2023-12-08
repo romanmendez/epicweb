@@ -30,7 +30,7 @@ import {
 } from '#app/utils/user-validation.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { VerifyFunctionArgs } from './verify.tsx'
+import { type VerifyFunctionArgs } from './verify.tsx'
 
 export const onboardingEmailSessionKey = 'onboardingEmail'
 

@@ -100,6 +100,27 @@ export async function login({
 	return session
 }
 
+export async function resetUserPassword({
+	username,
+	password,
+}: {
+	username: User['username']
+	password: string
+}) {
+	const hashedPassword = await getPasswordHash(password)
+	await prisma.user.update({
+		select: { id: true },
+		where: { username },
+		data: {
+			password: {
+				update: {
+					hash: hashedPassword,
+				},
+			},
+		},
+	})
+}
+
 export async function signup({
 	email,
 	username,

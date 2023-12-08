@@ -17,13 +17,14 @@ import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { generateTOTP, verifyTOTP } from '@epic-web/totp'
 import { handleVerification as handleOnboardingVerification } from './onboarding.tsx'
+import { handleVerification as handleResetPasswordVerification } from './reset-password.tsx'
 
 export const codeQueryParam = 'code'
 export const targetQueryParam = 'target'
 export const typeQueryParam = 'type'
 export const redirectToQueryParam = 'redirectTo'
 
-const VerificationTypeSchema = z.enum(['onboarding'])
+const VerificationTypeSchema = z.enum(['onboarding', 'reset-password'])
 export type VerificationType = z.infer<typeof VerificationTypeSchema>
 
 const VerifySchema = z.object({
@@ -89,14 +90,6 @@ export async function prepareVerification({
 	target: string
 	redirectTo?: string
 }) {
-	const verifyUrl = getRedirectToUrl({
-		request,
-		type,
-		target,
-		redirectTo: postVerificationRedirectTo,
-	})
-	const redirectTo = new URL(verifyUrl.toString())
-
 	const { otp, ...verificationConfig } = generateTOTP({
 		algorithm: 'SHA256',
 		period,
@@ -113,6 +106,13 @@ export async function prepareVerification({
 		update: verificationData,
 	})
 
+	const verifyUrl = getRedirectToUrl({
+		request,
+		type,
+		target,
+		redirectTo: postVerificationRedirectTo,
+	})
+	const redirectTo = new URL(verifyUrl.toString())
 	verifyUrl.searchParams.set(codeQueryParam, otp)
 
 	return { verifyUrl, redirectTo, otp }
@@ -193,6 +193,9 @@ async function validateRequest(
 		case 'onboarding': {
 			return handleOnboardingVerification({ request, body, submission })
 		}
+		case 'reset-password': {
+			return handleResetPasswordVerification({ request, body, submission })
+		}
 	}
 }
 
@@ -201,7 +204,6 @@ export default function VerifyRoute() {
 	const [searchParams] = useSearchParams()
 	const isPending = useIsPending()
 	const actionData = useActionData<typeof action>()
-	console.log('data', data, 'searchParams', searchParams)
 
 	const [form, fields] = useForm({
 		id: 'verify-form',

@@ -18,6 +18,7 @@ import { prisma } from '#app/utils/db.server.ts'
 import { generateTOTP, verifyTOTP } from '@epic-web/totp'
 import { handleVerification as handleOnboardingVerification } from './onboarding.tsx'
 import { handleVerification as handleResetPasswordVerification } from './reset-password.tsx'
+import { handleVerification as handleChangeEmailVerification } from '../settings+/profile.change-email.tsx'
 
 export const codeQueryParam = 'code'
 export const targetQueryParam = 'target'
@@ -25,6 +26,7 @@ export const typeQueryParam = 'type'
 export const redirectToQueryParam = 'redirectTo'
 
 const VerificationTypeSchema = z.enum(['onboarding', 'reset-password'])
+	'change-email',
 export type VerificationType = z.infer<typeof VerificationTypeSchema>
 
 const VerifySchema = z.object({
@@ -195,6 +197,9 @@ async function validateRequest(
 		}
 		case 'reset-password': {
 			return handleResetPasswordVerification({ request, body, submission })
+		}
+		case 'change-email': {
+			return handleChangeEmailVerification({ request, body, submission })
 		}
 	}
 }

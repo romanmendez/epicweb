@@ -23,6 +23,7 @@ import {
 import { requireUserId, sessionIdKey } from '#app/utils/auth.server.ts'
 import { useUser } from '#app/utils/user.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
+import { twoFAVerificationType } from './profile.two-factor.tsx'
 
 const ProfileFormSchema = z.object({
 	name: NameSchema.optional(),
@@ -58,7 +59,14 @@ export async function loader({ request }: DataFunctionArgs) {
 
 	invariantResponse(user, 'User not found', { status: 404 })
 
-	return json({ user })
+	const twoFA = await prisma.verification.findUnique({
+		where: {
+			target_type: { target: user.id, type: twoFAVerificationType },
+		},
+		select: { id: true },
+	})
+
+	return json({ user, isTwoFAEnabled: Boolean(twoFA) })
 }
 
 type ProfileActionArgs = {
@@ -92,15 +100,15 @@ export async function action({ request }: DataFunctionArgs) {
 }
 
 export default function EditUserProfile() {
-	const user = useUser()
+	const data = useLoaderData<typeof loader>()
 
 	return (
 		<div className="flex flex-col gap-12">
 			<div className="flex justify-center">
 				<div className="relative h-52 w-52">
 					<img
-						src={getUserImgSrc(user.image?.id)}
-						alt={user.username}
+						src={getUserImgSrc(data.user.image?.id)}
+						alt={data.user.username}
 						className="h-full w-full rounded-full object-cover"
 					/>
 					<Button
@@ -123,6 +131,20 @@ export default function EditUserProfile() {
 
 			<div className="col-span-6 my-6 h-1 border-b-[1.5px] border-foreground" />
 			<div className="col-span-full flex flex-col gap-6">
+				<div>
+					<Link to="change-email">
+						<Icon name="envelope-closed">
+							Change email from {data.user.email}
+						</Icon>
+					</Link>
+				</div>
+				<Link to="two-factor">
+					{data.isTwoFAEnabled ? (
+						<Icon name="lock-closed">2FA is enabled</Icon>
+					) : (
+						<Icon name="lock-open-1">Enable 2FA</Icon>
+					)}
+				</Link>
 				<div>
 					<Link to="password">
 						<Icon name="dots-horizontal">Change Password</Icon>

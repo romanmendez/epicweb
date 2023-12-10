@@ -19,14 +19,19 @@ import { generateTOTP, verifyTOTP } from '@epic-web/totp'
 import { handleVerification as handleOnboardingVerification } from './onboarding.tsx'
 import { handleVerification as handleResetPasswordVerification } from './reset-password.tsx'
 import { handleVerification as handleChangeEmailVerification } from '../settings+/profile.change-email.tsx'
+import { type twoFAVerifyVerificationType } from '../settings+/profile.two-factor.verify.tsx'
 
 export const codeQueryParam = 'code'
 export const targetQueryParam = 'target'
 export const typeQueryParam = 'type'
 export const redirectToQueryParam = 'redirectTo'
 
-const VerificationTypeSchema = z.enum(['onboarding', 'reset-password'])
+const VerificationTypeSchema = z.enum([
+	'onboarding',
+	'reset-password',
 	'change-email',
+	'2fa',
+] as const)
 export type VerificationType = z.infer<typeof VerificationTypeSchema>
 
 const VerifySchema = z.object({
@@ -132,7 +137,7 @@ export async function isCodeValid({
 	target,
 }: {
 	code: string
-	type: VerificationType
+	type: VerificationType | typeof twoFAVerifyVerificationType
 	target: string
 }) {
 	const verification = await prisma.verification.findUnique({
@@ -164,7 +169,6 @@ async function validateRequest(
 	const submission = await parse(body, {
 		schema: () =>
 			VerifySchema.superRefine(async (data, ctx) => {
-				console.log('verify this', data)
 				const codeIsValid = await isCodeValid(data)
 				if (!codeIsValid) {
 					ctx.addIssue({
@@ -200,6 +204,9 @@ async function validateRequest(
 		}
 		case 'change-email': {
 			return handleChangeEmailVerification({ request, body, submission })
+		}
+		case '2fa': {
+			throw new Error('Not yet implemented')
 		}
 	}
 }

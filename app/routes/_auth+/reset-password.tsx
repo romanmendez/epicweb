@@ -40,7 +40,7 @@ export async function handleVerification({
 			{
 				status: 'error',
 				submission,
-			},
+			} as const,
 			{ status: 400 },
 		)
 	}

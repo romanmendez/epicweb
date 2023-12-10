@@ -16,7 +16,7 @@ import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
-import { useIsPending } from '#app/utils/misc.tsx'
+import { combineHeaders, invariant, useIsPending } from '#app/utils/misc.tsx'
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import {
@@ -25,6 +25,11 @@ import {
 	sessionIdKey,
 } from '#app/utils/auth.server.ts'
 import { safeRedirect } from 'remix-utils/safe-redirect'
+import { prisma } from '#app/utils/db.server.ts'
+import { twoFAVerificationType } from '../settings+/profile.two-factor.tsx'
+import { verifySessionStorage } from '#app/utils/verification.server.ts'
+import { type VerifyFunctionArgs, getRedirectToUrl } from './verify.tsx'
+import { redirectWithToast } from '#app/utils/toast.server.ts'
 
 const LoginFormSchema = z.object({
 	username: UsernameSchema,
@@ -32,6 +37,49 @@ const LoginFormSchema = z.object({
 	remember: z.boolean().optional(),
 	redirectTo: z.string().optional(),
 })
+
+export const unverifiedSessionIdKey = 'unverified-session-id'
+export const rememberMeKey = 'remember-me'
+
+export async function handleVerification({
+	request,
+	submission,
+}: VerifyFunctionArgs) {
+	invariant(submission.value, 'submission.value should be set by now')
+	const userSession = await sessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const verifySession = await verifySessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey)
+	const remember = verifySession.get(rememberMeKey)
+
+	const session = await prisma.session.findUnique({
+		where: { id: unverifiedSessionId },
+		select: { expirationDate: true },
+	})
+	if (!session) {
+		throw await redirectWithToast('/login', {
+			type: 'error',
+			title: 'Invalid session',
+			description: 'Could not find the session. Please try again.',
+		})
+	}
+	userSession.set(sessionIdKey, unverifiedSessionId)
+	return redirect(safeRedirect(submission.value.redirectTo), {
+		headers: combineHeaders(
+			{
+				'set-cookie': await sessionStorage.commitSession(userSession, {
+					expires: remember ? session.expirationDate : undefined,
+				}),
+			},
+			{
+				'set-cookie': await verifySessionStorage.destroySession(verifySession),
+			},
+		),
+	})
+}
 
 export async function loader({ request }: DataFunctionArgs) {
 	await requireAnonymous(request)
@@ -75,14 +123,39 @@ export async function action({ request }: DataFunctionArgs) {
 
 	const { session, remember, redirectTo } = submission.value
 
-	const cookieSession = await sessionStorage.getSession(
+	const verification = await prisma.verification.findUnique({
+		where: {
+			target_type: { target: session.userId, type: twoFAVerificationType },
+		},
+		select: { id: true },
+	})
+	const userHasTwoFA = Boolean(verification)
+	if (userHasTwoFA) {
+		const verifySession = await verifySessionStorage.getSession()
+		verifySession.set(unverifiedSessionIdKey, session.id)
+		verifySession.set(rememberMeKey, remember)
+
+		const redirectUrl = getRedirectToUrl({
+			request,
+			type: twoFAVerificationType,
+			target: session.userId,
+			redirectTo,
+		})
+		return redirect(redirectUrl.toString(), {
+			headers: {
+				'set-cookie': await verifySessionStorage.commitSession(verifySession),
+			},
+		})
+	}
+
+	const userSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
-	cookieSession.set(sessionIdKey, session.id)
+	userSession.set(sessionIdKey, session.id)
 
 	return redirect(safeRedirect(redirectTo, '/'), {
 		headers: {
-			'set-cookie': await sessionStorage.commitSession(cookieSession, {
+			'set-cookie': await sessionStorage.commitSession(userSession, {
 				expires: remember ? session.expirationDate : undefined,
 			}),
 		},

@@ -5,6 +5,10 @@ import { safeRedirect } from 'remix-utils/safe-redirect'
 import { prisma } from '#app/utils/db.server.ts'
 import { combineResponseInits } from './misc.tsx'
 import { sessionStorage } from './session.server.ts'
+import { verifySessionStorage } from './verification.server.ts'
+import { unverifiedSessionIdKey } from '#app/routes/_auth+/login.tsx'
+import { getRedirectToUrl } from '#app/routes/_auth+/verify.tsx'
+import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx'
 
 const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30
 export const getSessionExpirationDate = () =>
@@ -75,6 +79,22 @@ export async function requireUser(request: Request) {
 }
 
 export async function requireAnonymous(request: Request) {
+	const verifySession = await verifySessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey)
+	if (unverifiedSessionId) {
+		const { userId } = await prisma.session.findFirstOrThrow({
+			where: { id: unverifiedSessionId },
+			select: { userId: true },
+		})
+		const redirectUrl = getRedirectToUrl({
+			request,
+			type: twoFAVerificationType,
+			target: userId,
+		})
+		throw redirect(redirectUrl.toString())
+	}
 	const userId = await getUserId(request)
 	if (userId) {
 		throw redirect('/')

@@ -1,7 +1,7 @@
 import { generateTOTP } from '@epic-web/totp'
 
 const otpUri = new URL(
-	`otpauth://totp/Epic%20Notes:kody%40kcd.dev?secret=JWZWVIMEOPD5CTNK&issuer=Epic+Notes&algorithm=SHA1&digits=6&period=600`,
+	`otpauth://totp/Epic%20Notes:kody%40kcd.dev?secret=CSILQIOHKKZ4MP6E&issuer=Epic+Notes&algorithm=SHA1&digits=6&period=30`,
 )
 const { secret, algorithm, digits, period } = Object.fromEntries(
 	otpUri.searchParams.entries(),

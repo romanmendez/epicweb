@@ -7,23 +7,58 @@ import { requireUserId } from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { useDoubleCheck, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
+import { twoFAVerificationType } from './profile.two-factor.tsx'
+import { shouldRequestTwoFA } from '../_auth+/login.tsx'
+import { getRedirectToUrl } from '../_auth+/verify.tsx'
 
 export const handle = {
 	breadcrumb: <Icon name="lock-open-1">Disable</Icon>,
 }
 
+async function requireRecentVerification({
+	request,
+	userId,
+}: {
+	request: Request
+	userId: string
+}) {
+	const shouldReverify = await shouldRequestTwoFA({ request, userId })
+	const reqUrl = new URL(request.url)
+	const redirectUrl = getRedirectToUrl({
+		request,
+		type: twoFAVerificationType,
+		target: userId,
+		redirectTo: reqUrl.pathname + reqUrl.search,
+	})
+	if (shouldReverify) {
+		throw await redirectWithToast(redirectUrl.toString(), {
+			type: 'message',
+			title: 'Please Revirify',
+			description: 'You must reverify your account to proceed.',
+		})
+	}
+}
+
 export async function loader({ request }: DataFunctionArgs) {
-	await requireUserId(request)
+	const userId = await requireUserId(request)
+	await requireRecentVerification({ request, userId })
 	return json({})
 }
 
 export async function action({ request }: DataFunctionArgs) {
-	await requireUserId(request)
+	const userId = await requireUserId(request)
+	await requireRecentVerification({ request, userId })
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
+
+	await prisma.verification.delete({
+		where: { target_type: { target: userId, type: twoFAVerificationType } },
+	})
 	throw await redirectWithToast('/settings/profile/two-factor', {
-		title: '2FA Disabled (jk)',
-		description: 'This has not yet been implemented',
+		title: '2FA Disabled',
+		type: 'success',
+		description: 'You have disabled 2FA',
 	})
 }
 

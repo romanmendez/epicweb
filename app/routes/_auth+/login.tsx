@@ -16,7 +16,7 @@ import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
-import { combineHeaders, invariant, useIsPending } from '#app/utils/misc.tsx'
+import { invariant, useIsPending } from '#app/utils/misc.tsx'
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import {
@@ -40,6 +40,8 @@ const LoginFormSchema = z.object({
 
 export const unverifiedSessionIdKey = 'unverified-session-id'
 export const rememberMeKey = 'remember-me'
+export const verifiedTimeKey = 'verified-time'
+export const sessionExpirationTime = 1000 * 5 // 5 seconds for testing
 
 export async function handleVerification({
 	request,
@@ -54,31 +56,66 @@ export async function handleVerification({
 	)
 	const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey)
 	const remember = verifySession.get(rememberMeKey)
+	const headers = new Headers()
+	userSession.set(verifiedTimeKey, Date.now())
 
-	const session = await prisma.session.findUnique({
-		where: { id: unverifiedSessionId },
-		select: { expirationDate: true },
-	})
-	if (!session) {
-		throw await redirectWithToast('/login', {
-			type: 'error',
-			title: 'Invalid session',
-			description: 'Could not find the session. Please try again.',
+	if (unverifiedSessionId) {
+		const session = await prisma.session.findUnique({
+			where: { id: unverifiedSessionId },
+			select: { expirationDate: true },
 		})
+		if (!session) {
+			throw await redirectWithToast('/login', {
+				type: 'error',
+				title: 'Invalid session',
+				description: 'Could not find the session. Please try again.',
+			})
+		}
+		userSession.set(sessionIdKey, unverifiedSessionId)
+		headers.append(
+			'set-cookie',
+			await sessionStorage.commitSession(userSession, {
+				expires: remember ? session.expirationDate : undefined,
+			}),
+		)
+	} else {
+		headers.append(
+			'set-cookie',
+			await sessionStorage.commitSession(userSession),
+		)
 	}
-	userSession.set(sessionIdKey, unverifiedSessionId)
-	return redirect(safeRedirect(submission.value.redirectTo), {
-		headers: combineHeaders(
-			{
-				'set-cookie': await sessionStorage.commitSession(userSession, {
-					expires: remember ? session.expirationDate : undefined,
-				}),
-			},
-			{
-				'set-cookie': await verifySessionStorage.destroySession(verifySession),
-			},
-		),
+	headers.append(
+		'set-cookie',
+		await verifySessionStorage.destroySession(verifySession),
+	)
+	return redirect(safeRedirect(submission.value.redirectTo), { headers })
+}
+
+export async function shouldRequestTwoFA({
+	request,
+	userId,
+}: {
+	request: Request
+	userId: string
+}) {
+	const verifySession = await verifySessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const unverifiedSession = verifySession.get(unverifiedSessionIdKey)
+	if (unverifiedSession) return true
+
+	const verification = await prisma.verification.findUnique({
+		where: { target_type: { target: userId, type: twoFAVerificationType } },
+		select: { id: true },
 	})
+	const userHasTwoFA = Boolean(verification)
+	if (!userHasTwoFA) return false
+
+	const userSession = await sessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	const verifiedTime = new Date(userSession.get(verifiedTimeKey) ?? 0)
+	return Date.now() - verifiedTime.getTime() > sessionExpirationTime
 }
 
 export async function loader({ request }: DataFunctionArgs) {
@@ -123,14 +160,7 @@ export async function action({ request }: DataFunctionArgs) {
 
 	const { session, remember, redirectTo } = submission.value
 
-	const verification = await prisma.verification.findUnique({
-		where: {
-			target_type: { target: session.userId, type: twoFAVerificationType },
-		},
-		select: { id: true },
-	})
-	const userHasTwoFA = Boolean(verification)
-	if (userHasTwoFA) {
+	if (await shouldRequestTwoFA({ request, userId: session.userId })) {
 		const verifySession = await verifySessionStorage.getSession()
 		verifySession.set(unverifiedSessionIdKey, session.id)
 		verifySession.set(rememberMeKey, remember)

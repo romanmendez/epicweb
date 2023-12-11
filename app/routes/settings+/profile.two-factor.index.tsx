@@ -26,12 +26,12 @@ export async function action({ request }: DataFunctionArgs) {
 	const userId = await requireUserId(request)
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
-	const { otp: _otp, ...verificationConfig } = generateTOTP({ period: 10 * 60 })
+	const { otp: _otp, ...verificationConfig } = generateTOTP()
 	const verificationData = {
 		type: twoFAVerifyVerificationType,
 		target: userId,
 		...verificationConfig,
-		expiresAt: new Date(Date.now() + verificationConfig.period * 1000),
+		expiresAt: new Date(Date.now() + 10 * 60 * 1000),
 	}
 	await prisma.verification.upsert({
 		where: {

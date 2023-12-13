@@ -22,6 +22,8 @@ import { useIsPending } from '#app/utils/misc.tsx'
 import { EmailSchema } from '#app/utils/user-validation.ts'
 import { sendEmail } from '#app/utils/email.server.ts'
 import { prepareVerification } from './verify.tsx'
+import { ProviderConnectionForm } from '#app/utils/connections.tsx'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 
 const SignupSchema = z.object({
 	email: EmailSchema,
@@ -136,50 +138,46 @@ export default function SignupRoute() {
 		},
 		shouldRevalidate: 'onBlur',
 	})
-	console.log(actionData?.submission)
 
 	return (
-		<div className="container flex min-h-full flex-col justify-center pb-32 pt-20">
-			<div className="mx-auto w-full max-w-lg">
-				<div className="flex flex-col gap-3 text-center">
-					<h1 className="text-h1">Let's start you journey!</h1>
-					<p className="text-body-md text-muted-foreground">
-						Please enter your email.
-					</p>
-				</div>
-				<Spacer size="xs" />
-				<Form
-					method="POST"
-					className="mx-auto min-w-[368px] max-w-sm"
-					{...form.props}
-				>
+		<div className="container flex flex-col justify-center pb-32 pt-20">
+			<div className="text-center">
+				<h1 className="text-h1">Let's start your journey!</h1>
+				<p className="mt-3 text-body-md text-muted-foreground">
+					Please enter your email.
+				</p>
+			</div>
+			<div className="mx-auto mt-16 min-w-[368px] max-w-sm">
+				<Form method="POST" {...form.props}>
 					<AuthenticityTokenInput />
 					<HoneypotInputs />
 					<Field
-						labelProps={{ htmlFor: fields.email.id, children: 'Email' }}
-						inputProps={{
-							...conform.input(fields.email),
-							autoComplete: 'email',
-							autoFocus: true,
-							className: 'lowercase',
+						labelProps={{
+							htmlFor: fields.email.id,
+							children: 'Email',
 						}}
+						inputProps={{ ...conform.input(fields.email), autoFocus: true }}
 						errors={fields.email.errors}
 					/>
 					<input {...conform.input(fields.redirectTo, { type: 'hidden' })} />
 					<ErrorList errors={form.errors} id={form.errorId} />
-
-					<div className="flex items-center justify-between gap-6">
-						<StatusButton
-							className="w-full"
-							status={isPending ? 'pending' : actionData?.status ?? 'idle'}
-							type="submit"
-							disabled={isPending}
-						>
-							Submit
-						</StatusButton>
-					</div>
+					<StatusButton
+						className="w-full"
+						status={isPending ? 'pending' : actionData?.status ?? 'idle'}
+						type="submit"
+						disabled={isPending}
+					>
+						Submit
+					</StatusButton>
 				</Form>
+				<div className="mt-5 flex flex-col gap-5 border-b-2 border-t-2 border-border py-3">
+					<ProviderConnectionForm type="Signup" providerName="github" />
+				</div>
 			</div>
 		</div>
 	)
+}
+
+export function ErrorBoundary() {
+	return <GeneralErrorBoundary />
 }

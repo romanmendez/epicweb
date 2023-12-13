@@ -133,6 +133,7 @@ export const handlers: Array<HttpHandler> = [
 		'https://github.com/login/oauth/access_token',
 		async ({ request }) => {
 			if (passthroughGitHub) return passthrough()
+			console.log('🔶 oath/access_token')
 			const params = new URLSearchParams(await request.text())
 
 			const code = params.get('code')
@@ -153,6 +154,7 @@ export const handlers: Array<HttpHandler> = [
 	),
 	http.get('https://api.github.com/user/emails', async ({ request }) => {
 		if (passthroughGitHub) return passthrough()
+		console.log('🔶 user/emails')
 
 		const user = await getUser(request)
 		if (user instanceof Response) return user
@@ -161,6 +163,7 @@ export const handlers: Array<HttpHandler> = [
 	}),
 	http.get('https://api.github.com/user/:id', async ({ params }) => {
 		if (passthroughGitHub) return passthrough()
+		console.log('🔶 user/:id')
 
 		const mockUser = (await getGitHubUsers()).find(
 			u => u.profile.id === params.id,
@@ -171,6 +174,7 @@ export const handlers: Array<HttpHandler> = [
 	}),
 	http.get('https://api.github.com/user', async ({ request }) => {
 		if (passthroughGitHub) return passthrough()
+		console.log('🔶 user')
 
 		const user = await getUser(request)
 		if (user instanceof Response) return user
@@ -179,6 +183,7 @@ export const handlers: Array<HttpHandler> = [
 	}),
 	http.get('https://github.com/ghost.png', async () => {
 		if (passthroughGitHub) return passthrough()
+		console.log('🔶 ghost')
 
 		const buffer = await fsExtra.readFile('./tests/fixtures/github/ghost.jpg')
 		return new Response(buffer, {

@@ -33,7 +33,7 @@
   ],
   "dependencies": {
     "@epic-web/totp": "^1.1.1",
-    "@kentcdodds/workshop-app": "^2.54.4",
+    "@kentcdodds/workshop-app": "^2.58.5",
     "@mswjs/data": "^0.14.0",
     "@prisma/client": "^5.6.0",
     "@radix-ui/react-alert-dialog": "^1.0.5",
@@ -62,6 +62,8 @@
     "qrcode": "^1.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "remix-auth": "^3.6.0",
+    "remix-auth-github": "^1.6.0",
     "remix-utils": "^7.1.0",
     "spin-delay": "^1.2.0",
     "tailwind-merge": "^1.14.0",

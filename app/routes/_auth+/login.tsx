@@ -30,6 +30,7 @@ import { twoFAVerificationType } from '../settings+/profile.two-factor.tsx'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { type VerifyFunctionArgs, getRedirectToUrl } from './verify.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
+import { ProviderConnectionForm } from '#app/utils/connections.tsx'
 
 const LoginFormSchema = z.object({
 	username: UsernameSchema,
@@ -280,6 +281,10 @@ export default function LoginPage() {
 								</StatusButton>
 							</div>
 						</Form>
+						<div className="mt-5 flex flex-col gap-5 border-b-2 border-t-2 border-border py-3">
+							<ProviderConnectionForm type="Login" providerName="github" />
+						</div>
+
 						<div className="flex items-center justify-center gap-2 pt-6">
 							<span className="text-muted-foreground">New here?</span>
 							<Link

@@ -9,12 +9,55 @@ import { verifySessionStorage } from './verification.server.ts'
 import { unverifiedSessionIdKey } from '#app/routes/_auth+/login.tsx'
 import { getRedirectToUrl } from '#app/routes/_auth+/verify.tsx'
 import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx'
+import { Authenticator } from 'remix-auth'
+import { GitHubStrategy } from 'remix-auth-github'
+import { redirectWithToast } from './toast.server.ts'
+import { connectionSessionStorage } from './connections.server.ts'
 
 const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30
 export const getSessionExpirationDate = () =>
 	new Date(Date.now() + SESSION_EXPIRATION_TIME)
 
 export const sessionIdKey = 'sessionId'
+
+type ProviderUser = {
+	id: string
+	email: string
+	username: string
+	name?: string
+	imageUrl?: string
+}
+
+export const authenticator = new Authenticator<ProviderUser>(
+	connectionSessionStorage,
+)
+authenticator.use(
+	new GitHubStrategy(
+		{
+			clientID: process.env.GITHUB_CLIENT_ID,
+			clientSecret: process.env.GITHUB_CLIENT_SECRET,
+			callbackURL: '/auth/github/callback',
+		},
+		async ({ profile }) => {
+			const email = profile.emails[0].value.trim().toLowerCase()
+			if (!email) {
+				throw redirectWithToast('/login', {
+					title: 'No email found',
+					description: 'Please add a verified email to your github account.',
+					type: 'error',
+				})
+			}
+			return {
+				id: profile.id,
+				email,
+				username: profile.displayName,
+				name: profile.name.givenName,
+				imageUrl: profile.photos[0].value,
+			}
+		},
+	),
+	'github',
+)
 
 export function getRedirectRoute(request: Request) {
 	const url = new URL(request.url)

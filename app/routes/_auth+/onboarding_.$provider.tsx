@@ -22,6 +22,7 @@ import {
 	authenticator,
 	requireAnonymous,
 	sessionIdKey,
+	signupWithConnection,
 } from '#app/utils/auth.server.ts'
 import { ProviderNameSchema } from '#app/utils/connections.tsx'
 import { prisma } from '#app/utils/db.server.ts'
@@ -33,6 +34,7 @@ import { type VerifyFunctionArgs } from './verify.tsx'
 
 export const onboardingEmailSessionKey = 'onboardingEmail'
 export const providerIdKey = 'providerId'
+export const providerProfileKey = 'providerProfile'
 
 const SignupFormSchema = z.object({
 	imageUrl: z.string().optional(),
@@ -44,6 +46,8 @@ const SignupFormSchema = z.object({
 	remember: z.boolean().optional(),
 	redirectTo: z.string().optional(),
 })
+
+export type SignupFormType = z.infer<typeof SignupFormSchema>
 
 async function requireData({
 	request,
@@ -75,18 +79,23 @@ async function requireData({
 
 export async function loader({ request, params }: DataFunctionArgs) {
 	const { email } = await requireData({ request, params })
+	const verifySession = await verifySessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
 	const cookieSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
 
+	const profile = verifySession.get(providerProfileKey)
 	const formError = cookieSession.get(authenticator.sessionErrorKey)
 
 	return json({
 		email,
+		profile,
 		status: 'idle',
 		submission: {
 			intent: '',
-			payload: {} as Record<string, unknown>,
+			payload: (profile ?? {}) as Record<string, unknown>,
 			error: {
 				'': typeof formError === 'string' ? [formError] : [],
 			},
@@ -119,13 +128,15 @@ export async function action({ request, params }: DataFunctionArgs) {
 				return
 			}
 		}).transform(async data => {
-			console.log('TODO: implement third party onboarding', {
-				...data,
+			const { name, username, imageUrl } = data
+			const session = await signupWithConnection({
 				email,
 				providerId,
 				providerName,
+				name,
+				username,
+				imageUrl,
 			})
-			const session = { id: 'TODO', expirationDate: new Date() }
 			return { ...data, session }
 		}),
 		async: true,
@@ -190,6 +201,11 @@ export default function SignupRoute() {
 		id: 'signup-form',
 		constraint: getFieldsetConstraint(SignupFormSchema),
 		lastSubmission: actionData?.submission ?? data.submission,
+		defaultValue: {
+			imageUrl: data.profile.imageUrl ?? '',
+			username: data.profile.username ?? '',
+			name: data.profile.name ?? '',
+		},
 		onValidate({ formData }) {
 			return parse(formData, { schema: SignupFormSchema })
 		},

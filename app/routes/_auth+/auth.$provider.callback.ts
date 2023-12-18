@@ -14,9 +14,17 @@ import { handleNewSession } from './login.tsx'
 import { verifySessionStorage } from '#app/utils/verification.server.ts'
 import { onboardingEmailSessionKey } from './onboarding.tsx'
 import { providerIdKey, providerProfileKey } from './onboarding_.$provider.tsx'
+import {
+	destroyRedirectToHeader,
+	getRedirectCookieValue,
+} from '#app/utils/redirect-cookie.server.ts'
+import { combineHeaders, combineResponseInits } from '#app/utils/misc.tsx'
+
+const destroyRedirectCookie = { 'set-cookie': destroyRedirectToHeader }
 
 export async function loader({ request, params }: DataFunctionArgs) {
 	const providerName = ProviderNameSchema.parse(params.provider)
+	const redirectTo = getRedirectCookieValue(request)
 
 	const label = providerLabels[providerName]
 
@@ -26,11 +34,17 @@ export async function loader({ request, params }: DataFunctionArgs) {
 		})
 		.catch(async error => {
 			console.error(error)
-			throw await redirectWithToast('/', {
-				type: 'error',
-				title: `Auth Error`,
-				description: `There was an error authenticating with ${label}`,
-			})
+			throw await redirectWithToast(
+				'/',
+				{
+					type: 'error',
+					title: `Auth Error`,
+					description: `There was an error authenticating with ${label}`,
+				},
+				{
+					headers: destroyRedirectCookie,
+				},
+			)
 		})
 	const existingConnection = await prisma.connection.findUnique({
 		where: {
@@ -48,30 +62,43 @@ export async function loader({ request, params }: DataFunctionArgs) {
 	const userId = await getUserId(request)
 
 	if (existingConnection && userId) {
-		throw await redirectWithToast('/settings/profile/connections', {
-			type: 'error',
-			title: 'Auth Error',
-			description:
-				existingConnection.userId === userId
-					? `You have already connected this account.`
-					: `This ${label} account has already been connected to another Epic Notes account.`,
-		})
+		throw await redirectWithToast(
+			'/settings/profile/connections',
+			{
+				type: 'error',
+				title: 'Auth Error',
+				description:
+					existingConnection.userId === userId
+						? `You have already connected this account.`
+						: `This ${label} account has already been connected to another Epic Notes account.`,
+			},
+			{
+				headers: destroyRedirectCookie,
+			},
+		)
 	}
 	if (existingConnection) {
 		return makeSession({
 			request,
 			userId: existingConnection.userId,
+			redirectTo,
 		})
 	}
 	if (userId) {
 		await prisma.connection.create({
 			data: { providerName, providerId: profile.id, userId },
 		})
-		return await redirectWithToast('/settings/profile/connections', {
-			type: 'success',
-			title: 'Connected',
-			description: `Your ${label} account has been connected to your Epic Notes account.`,
-		})
+		return await redirectWithToast(
+			'/settings/profile/connections',
+			{
+				type: 'success',
+				title: 'Connected',
+				description: `Your ${label} account has been connected to your Epic Notes account.`,
+			},
+			{
+				headers: destroyRedirectCookie,
+			},
+		)
 	}
 	if (user) {
 		await prisma.connection.create({
@@ -81,7 +108,7 @@ export async function loader({ request, params }: DataFunctionArgs) {
 			{
 				request,
 				userId: user.id,
-				redirectTo: '/settings/profile/connections',
+				redirectTo: redirectTo ?? '/settings/profile/connections',
 			},
 			{
 				headers: await createToastHeaders({
@@ -105,10 +132,19 @@ export async function loader({ request, params }: DataFunctionArgs) {
 			.slice(0, 20)
 			.padEnd(3, '_'),
 	})
-	return redirect(`/onboarding/${providerName}`, {
-		headers: {
-			'set-cookie': await verifySessionStorage.commitSession(verifySession),
-		},
+	const onboardingRedirect = [
+		`/onboarding/${providerName}`,
+		redirectTo ? new URLSearchParams({ redirectTo }) : null,
+	]
+		.filter(Boolean)
+		.join('?')
+	return redirect(onboardingRedirect.toString(), {
+		headers: combineHeaders(
+			{
+				'set-cookie': await verifySessionStorage.commitSession(verifySession),
+			},
+			destroyRedirectCookie,
+		),
 	})
 }
 
@@ -130,6 +166,6 @@ async function makeSession(
 	})
 	return handleNewSession(
 		{ request, session, redirectTo, remember: true },
-		responseInit,
+		combineResponseInits({ headers: destroyRedirectCookie }, responseInit),
 	)
 }

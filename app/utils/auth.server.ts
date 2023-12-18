@@ -1,9 +1,9 @@
-import { type Password, type User } from '@prisma/client'
+import { Connection, type Password, type User } from '@prisma/client'
 import { redirect } from '@remix-run/node'
 import bcrypt from 'bcryptjs'
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { prisma } from '#app/utils/db.server.ts'
-import { combineResponseInits } from './misc.tsx'
+import { combineResponseInits, downloadFile } from './misc.tsx'
 import { sessionStorage } from './session.server.ts'
 import { verifySessionStorage } from './verification.server.ts'
 import { unverifiedSessionIdKey } from '#app/routes/_auth+/login.tsx'
@@ -12,6 +12,9 @@ import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.
 import { Authenticator } from 'remix-auth'
 import { connectionSessionStorage, providers } from './connections.server.ts'
 import { type ProviderUser } from './providers/provider.ts'
+import { z } from 'zod'
+import { SignupFormType } from '#app/routes/_auth+/onboarding_.$provider.tsx'
+import { ProviderName } from './connections.tsx'
 
 const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30
 export const getSessionExpirationDate = () =>
@@ -175,6 +178,49 @@ export async function signup({
 		},
 	})
 
+	return session
+}
+
+export async function signupWithConnection({
+	email,
+	name,
+	username,
+	imageUrl,
+	providerId,
+	providerName,
+}: {
+	email: User['email']
+	name: User['name']
+	username: User['username']
+	imageUrl?: string
+	providerId: Connection['providerId']
+	providerName: Connection['providerName']
+}) {
+	const session = await prisma.session.create({
+		select: { id: true, expirationDate: true },
+		data: {
+			expirationDate: getSessionExpirationDate(),
+			user: {
+				create: {
+					name,
+					username,
+					email,
+					image: imageUrl
+						? {
+								create: await downloadFile(imageUrl),
+						  }
+						: undefined,
+					roles: { connect: { name: 'user' } },
+					connections: {
+						create: {
+							providerName,
+							providerId,
+						},
+					},
+				},
+			},
+		},
+	})
 	return session
 }
 

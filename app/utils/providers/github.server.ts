@@ -60,7 +60,7 @@ export class GitHubProvider implements AuthProvider {
 		)
 		const state = cuid()
 		connectionSession.set('oauth2:state', state)
-		const code = 'MOCK_GITHUB_CODE_KODY'
+		const code = 'MOCK_GITHUB_CODE_KODY_3'
 		const searchParams = new URLSearchParams({ code, state })
 		throw redirect(`/auth/github/callback?${searchParams}`, {
 			headers: {

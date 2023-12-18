@@ -44,19 +44,14 @@ const VerifySchema = z.object({
 
 export async function loader({ request }: DataFunctionArgs) {
 	const params = new URL(request.url).searchParams
-	if (!params.has(codeQueryParam)) {
-		// we don't want to show an error message on page load if the otp hasn't be
-		// prefilled in yet, so we'll send a response with an empty submission.
-		return json({
-			status: 'idle',
-			submission: {
-				intent: '',
-				payload: Object.fromEntries(params) as Record<string, unknown>,
-				error: {} as Record<string, Array<string>>,
-			},
-		} as const)
-	}
-	return validateRequest(request, params)
+	return json({
+		status: 'idle',
+		submission: {
+			intent: '',
+			payload: Object.fromEntries(params) as Record<string, unknown>,
+			error: {} as Record<string, Array<string>>,
+		},
+	} as const)
 }
 
 export async function action({ request }: DataFunctionArgs) {

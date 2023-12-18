@@ -46,5 +46,23 @@ export async function loader({ request, params }: DataFunctionArgs) {
 		title: 'Auth Success (jk)',
 		description: `You have successfully authenticated with ${label} (not really though...).`,
 		type: 'success',
+	const verifySession = await verifySessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	verifySession.set(onboardingEmailSessionKey, profile.email)
+	verifySession.set(providerIdKey, profile.id)
+	verifySession.set(providerProfileKey, {
+		...profile,
+		username: profile.username
+			?.replace(/[^a-zA-Z0-9]/gi, '_')
+			.toLowerCase()
+			.slice(0, 20)
+			.padEnd(3, '_'),
+	})
+	return redirect(`/onboarding/${providerName}`, {
+		headers: {
+			'set-cookie': await verifySessionStorage.commitSession(verifySession),
+		},
 	})
 }
+

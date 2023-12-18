@@ -16,7 +16,11 @@ import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { checkHoneypot } from '#app/utils/honeypot.server.ts'
-import { invariant, useIsPending } from '#app/utils/misc.tsx'
+import {
+	combineResponseInits,
+	invariant,
+	useIsPending,
+} from '#app/utils/misc.tsx'
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import {
@@ -119,6 +123,65 @@ export async function shouldRequestTwoFA({
 	return Date.now() - verifiedTime.getTime() > sessionExpirationTime
 }
 
+export async function handleNewSession(
+	{
+		request,
+		session,
+		remember = false,
+		redirectTo,
+	}: {
+		request: Request
+		session: { userId: string; id: string; expirationDate: Date }
+		remember?: Boolean
+		redirectTo?: string
+	},
+	responseInit?: ResponseInit,
+) {
+	if (await shouldRequestTwoFA({ request, userId: session.userId })) {
+		const verifySession = await verifySessionStorage.getSession()
+		verifySession.set(unverifiedSessionIdKey, session.id)
+		verifySession.set(rememberMeKey, remember)
+
+		const redirectUrl = getRedirectToUrl({
+			request,
+			type: twoFAVerificationType,
+			target: session.userId,
+			redirectTo,
+		})
+		return redirect(
+			redirectUrl.toString(),
+			combineResponseInits(
+				{
+					headers: {
+						'set-cookie':
+							await verifySessionStorage.commitSession(verifySession),
+					},
+				},
+				responseInit,
+			),
+		)
+	}
+
+	const userSession = await sessionStorage.getSession(
+		request.headers.get('cookie'),
+	)
+	userSession.set(sessionIdKey, session.id)
+
+	return redirect(
+		safeRedirect(redirectTo, '/'),
+		combineResponseInits(
+			{
+				headers: {
+					'set-cookie': await sessionStorage.commitSession(userSession, {
+						expires: remember ? session.expirationDate : undefined,
+					}),
+				},
+			},
+			responseInit,
+		),
+	)
+}
+
 export async function loader({ request }: DataFunctionArgs) {
 	await requireAnonymous(request)
 	return json({})
@@ -159,38 +222,7 @@ export async function action({ request }: DataFunctionArgs) {
 		return json({ status: 'error', submission } as const, { status: 400 })
 	}
 
-	const { session, remember, redirectTo } = submission.value
-
-	if (await shouldRequestTwoFA({ request, userId: session.userId })) {
-		const verifySession = await verifySessionStorage.getSession()
-		verifySession.set(unverifiedSessionIdKey, session.id)
-		verifySession.set(rememberMeKey, remember)
-
-		const redirectUrl = getRedirectToUrl({
-			request,
-			type: twoFAVerificationType,
-			target: session.userId,
-			redirectTo,
-		})
-		return redirect(redirectUrl.toString(), {
-			headers: {
-				'set-cookie': await verifySessionStorage.commitSession(verifySession),
-			},
-		})
-	}
-
-	const userSession = await sessionStorage.getSession(
-		request.headers.get('cookie'),
-	)
-	userSession.set(sessionIdKey, session.id)
-
-	return redirect(safeRedirect(redirectTo, '/'), {
-		headers: {
-			'set-cookie': await sessionStorage.commitSession(userSession, {
-				expires: remember ? session.expirationDate : undefined,
-			}),
-		},
-	})
+	return await handleNewSession({ request, ...submission.value })
 }
 
 export default function LoginPage() {

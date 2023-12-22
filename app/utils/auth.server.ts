@@ -1,20 +1,18 @@
-import { Connection, type Password, type User } from '@prisma/client'
+import { type Connection, type Password, type User } from '@prisma/client'
 import { redirect } from '@remix-run/node'
 import bcrypt from 'bcryptjs'
+import { Authenticator } from 'remix-auth'
 import { safeRedirect } from 'remix-utils/safe-redirect'
+import { connectionSessionStorage, providers } from './connections.server.ts'
+import { type ProviderName } from './connections.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { combineResponseInits, downloadFile } from './misc.tsx'
+import { type ProviderUser } from './providers/provider.ts'
 import { sessionStorage } from './session.server.ts'
 import { verifySessionStorage } from './verification.server.ts'
 import { unverifiedSessionIdKey } from '#app/routes/_auth+/login.tsx'
 import { getRedirectToUrl } from '#app/routes/_auth+/verify.tsx'
 import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx'
-import { Authenticator } from 'remix-auth'
-import { connectionSessionStorage, providers } from './connections.server.ts'
-import { type ProviderUser } from './providers/provider.ts'
-import { z } from 'zod'
-import { SignupFormType } from '#app/routes/_auth+/onboarding_.$provider.tsx'
-import { ProviderName } from './connections.tsx'
 
 const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30
 export const getSessionExpirationDate = () =>
@@ -54,33 +52,20 @@ export async function requireUserId(
 	request: Request,
 	{ redirectTo }: { redirectTo?: string | null } = {},
 ) {
-	const requestUrl = new URL(request.url)
-	redirectTo =
-		redirectTo === null
-			? null
-			: redirectTo ?? `${requestUrl.pathname}${requestUrl.searchParams}`
-	const loginParams = redirectTo ? new URLSearchParams({ redirectTo }) : null
-	const loginRedirect = ['/login', loginParams?.toString()]
-		.filter(Boolean)
-		.join('?')
-
 	const userId = await getUserId(request)
 	if (!userId) {
+		const requestUrl = new URL(request.url)
+		redirectTo =
+			redirectTo === null
+				? null
+				: redirectTo ?? `${requestUrl.pathname}${requestUrl.searchParams}`
+		const loginParams = redirectTo ? new URLSearchParams({ redirectTo }) : null
+		const loginRedirect = ['/login', loginParams?.toString()]
+			.filter(Boolean)
+			.join('?')
 		throw redirect(loginRedirect)
 	}
 	return userId
-}
-
-export async function requireUser(request: Request) {
-	const userId = await requireUserId(request)
-	const user = await prisma.user.findUnique({
-		where: { id: userId },
-		select: { username: true, id: true },
-	})
-	if (!user) {
-		await logout({ request })
-	}
-	return user
 }
 
 export async function requireAnonymous(request: Request) {
@@ -104,6 +89,18 @@ export async function requireAnonymous(request: Request) {
 	if (userId) {
 		throw redirect('/')
 	}
+}
+
+export async function requireUser(request: Request) {
+	const userId = await requireUserId(request)
+	const user = await prisma.user.findUnique({
+		where: { id: userId },
+		select: { username: true, id: true },
+	})
+	if (!user) {
+		await logout({ request })
+	}
+	return user
 }
 
 export async function login({
@@ -133,8 +130,7 @@ export async function resetUserPassword({
 	password: string
 }) {
 	const hashedPassword = await getPasswordHash(password)
-	await prisma.user.update({
-		select: { id: true },
+	return prisma.user.update({
 		where: { username },
 		data: {
 			password: {
@@ -158,6 +154,7 @@ export async function signup({
 	password: string
 }) {
 	const hashedPassword = await getPasswordHash(password)
+
 	const session = await prisma.session.create({
 		select: { id: true, expirationDate: true },
 		data: {
@@ -183,43 +180,36 @@ export async function signup({
 
 export async function signupWithConnection({
 	email,
-	name,
 	username,
-	imageUrl,
+	name,
 	providerId,
 	providerName,
+	imageUrl,
 }: {
 	email: User['email']
-	name: User['name']
 	username: User['username']
-	imageUrl?: string
+	name: User['name']
 	providerId: Connection['providerId']
-	providerName: Connection['providerName']
+	providerName: ProviderName
+	imageUrl?: string
 }) {
 	const session = await prisma.session.create({
-		select: { id: true, expirationDate: true },
 		data: {
 			expirationDate: getSessionExpirationDate(),
 			user: {
 				create: {
+					email: email.toLowerCase(),
+					username: username.toLowerCase(),
 					name,
-					username,
-					email,
-					image: imageUrl
-						? {
-								create: await downloadFile(imageUrl),
-						  }
-						: undefined,
 					roles: { connect: { name: 'user' } },
-					connections: {
-						create: {
-							providerName,
-							providerId,
-						},
-					},
+					connections: { create: { providerName, providerId } },
+					image: imageUrl
+						? { create: await downloadFile(imageUrl) }
+						: undefined,
 				},
 			},
 		},
+		select: { id: true, expirationDate: true },
 	})
 	return session
 }
@@ -237,12 +227,14 @@ export async function logout(
 	const cookieSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
 	)
-	void prisma.session
-		.delete({
-			where: { id: cookieSession.get(sessionIdKey) },
-		})
-		.catch(() => {})
-
+	const sessionId = cookieSession.get(sessionIdKey)
+	if (sessionId) {
+		void prisma.session
+			.delete({
+				where: { id: cookieSession.get(sessionIdKey) },
+			})
+			.catch(() => {})
+	}
 	throw redirect(
 		safeRedirect(redirectTo),
 		combineResponseInits(responseInit, {

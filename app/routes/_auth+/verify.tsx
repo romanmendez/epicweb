@@ -13,7 +13,7 @@ import { ErrorList, Field } from '#app/components/forms.tsx'
 import { Spacer } from '#app/components/spacer.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
-import { getDomainUrl, useIsPending } from '#app/utils/misc.tsx'
+import { useIsPending } from '#app/utils/misc.tsx'
 import { prisma } from '#app/utils/db.server.ts'
 import { generateTOTP, verifyTOTP } from '@epic-web/totp'
 import { handleVerification as handleOnboardingVerification } from './onboarding.tsx'
@@ -21,19 +21,15 @@ import { handleVerification as handleResetPasswordVerification } from './reset-p
 import { handleVerification as handleChangeEmailVerification } from '../settings+/profile.change-email.tsx'
 import { handleVerification as handle2FAVerification } from './login.tsx'
 import { type twoFAVerifyVerificationType } from '../settings+/profile.two-factor.verify.tsx'
-
-export const codeQueryParam = 'code'
-export const targetQueryParam = 'target'
-export const typeQueryParam = 'type'
-export const redirectToQueryParam = 'redirectTo'
-
-const VerificationTypeSchema = z.enum([
-	'onboarding',
-	'reset-password',
-	'change-email',
-	'2fa',
-] as const)
-export type VerificationType = z.infer<typeof VerificationTypeSchema>
+import {
+	codeQueryParam,
+	getRedirectToUrl,
+	redirectToQueryParam,
+	targetQueryParam,
+	typeQueryParam,
+	type VerificationType,
+	VerificationTypeSchema,
+} from '#app/utils/auth.server.ts'
 
 const VerifySchema = z.object({
 	[codeQueryParam]: z.string().min(6).max(6),
@@ -46,6 +42,8 @@ export async function loader({ request }: DataFunctionArgs) {
 	const params = new URL(request.url).searchParams
 	return json({
 		status: 'idle',
+		typeQueryParam,
+		VerificationTypeSchema,
 		submission: {
 			intent: '',
 			payload: Object.fromEntries(params) as Record<string, unknown>,
@@ -58,26 +56,6 @@ export async function action({ request }: DataFunctionArgs) {
 	const formData = await request.formData()
 	await validateCSRFToken(formData, request.headers)
 	return validateRequest(request, formData)
-}
-
-export function getRedirectToUrl({
-	request,
-	type,
-	target,
-	redirectTo,
-}: {
-	request: Request
-	type: VerificationType
-	target: string
-	redirectTo?: string
-}) {
-	const redirectToUrl = new URL(`${getDomainUrl(request)}/verify`)
-	redirectToUrl.searchParams.set(typeQueryParam, type)
-	redirectToUrl.searchParams.set(targetQueryParam, target)
-	if (redirectTo) {
-		redirectToUrl.searchParams.set(redirectToQueryParam, redirectTo)
-	}
-	return redirectToUrl
 }
 
 export async function prepareVerification({
@@ -218,7 +196,12 @@ export default function VerifyRoute() {
 	const [searchParams] = useSearchParams()
 	const isPending = useIsPending()
 	const actionData = useActionData<typeof action>()
-	const type = VerificationTypeSchema.parse(searchParams.get(typeQueryParam))
+	// throw new Error(
+	// 	JSON.stringify({ data: searchParams.get(data.typeQueryParam) }, null, 2),
+	// )
+	const type = VerificationTypeSchema.parse(
+		searchParams.get(data.typeQueryParam),
+	)
 
 	const checkEmail = (
 		<>

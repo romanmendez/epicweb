@@ -3,13 +3,12 @@ import { Link, Form, useLoaderData } from '@remix-run/react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
+import { requireUserId, twoFAVerificationType } from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { generateTOTP } from '@epic-web/totp'
 import { prisma } from '#app/utils/db.server.ts'
 import { twoFAVerifyVerificationType } from './profile.two-factor.verify.tsx'
-import { twoFAVerificationType } from './profile.two-factor.tsx'
 
 export async function loader({ request }: DataFunctionArgs) {
 	const userId = await requireUserId(request)

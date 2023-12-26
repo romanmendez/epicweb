@@ -42,6 +42,7 @@ export async function action({ request }: DataFunctionArgs) {
 
 	const submission = await parse(formData, {
 		schema: SignupSchema.superRefine(async (data, ctx) => {
+			console.log(data, 'data in parser')
 			const existingUser = await prisma.user.findUnique({
 				where: { email: data.email },
 				select: { id: true },

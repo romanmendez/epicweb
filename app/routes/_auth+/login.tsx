@@ -24,15 +24,22 @@ import {
 import { PasswordSchema, UsernameSchema } from '#app/utils/user-validation.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import {
+	getRedirectToUrl,
 	login,
 	requireAnonymous,
 	sessionIdKey,
+	twoFAVerificationType,
 } from '#app/utils/auth.server.ts'
 import { safeRedirect } from 'remix-utils/safe-redirect'
 import { prisma } from '#app/utils/db.server.ts'
-import { twoFAVerificationType } from '../settings+/profile.two-factor.tsx'
-import { verifySessionStorage } from '#app/utils/verification.server.ts'
-import { type VerifyFunctionArgs, getRedirectToUrl } from './verify.tsx'
+import {
+	rememberMeKey,
+	sessionExpirationTime,
+	unverifiedSessionIdKey,
+	verifiedTimeKey,
+	verifySessionStorage,
+} from '#app/utils/verification.server.ts'
+import { type VerifyFunctionArgs } from './verify.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { ProviderConnectionForm } from '#app/utils/connections.tsx'
 
@@ -42,11 +49,6 @@ const LoginFormSchema = z.object({
 	remember: z.boolean().optional(),
 	redirectTo: z.string().optional(),
 })
-
-export const unverifiedSessionIdKey = 'unverified-session-id'
-export const rememberMeKey = 'remember-me'
-export const verifiedTimeKey = 'verified-time'
-export const sessionExpirationTime = 1000 * 5 // 5 seconds for testing
 
 export async function handleVerification({
 	request,

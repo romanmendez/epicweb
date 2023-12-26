@@ -3,14 +3,16 @@ import { Form } from '@remix-run/react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
+import {
+	getRedirectToUrl,
+	requireUserId,
+	twoFAVerificationType,
+} from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { useDoubleCheck, useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
-import { twoFAVerificationType } from './profile.two-factor.tsx'
 import { shouldRequestTwoFA } from '../_auth+/login.tsx'
-import { getRedirectToUrl } from '../_auth+/verify.tsx'
 
 export const handle = {
 	breadcrumb: <Icon name="lock-open-1">Disable</Icon>,

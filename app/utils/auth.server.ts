@@ -1,4 +1,5 @@
 import { type Connection, type Password, type User } from '@prisma/client'
+import { z } from 'zod'
 import { redirect } from '@remix-run/node'
 import bcrypt from 'bcryptjs'
 import { Authenticator } from 'remix-auth'
@@ -6,13 +7,13 @@ import { safeRedirect } from 'remix-utils/safe-redirect'
 import { connectionSessionStorage, providers } from './connections.server.ts'
 import { type ProviderName } from './connections.tsx'
 import { prisma } from '#app/utils/db.server.ts'
-import { combineResponseInits, downloadFile } from './misc.tsx'
+import { combineResponseInits, downloadFile, getDomainUrl } from './misc.tsx'
 import { type ProviderUser } from './providers/provider.ts'
 import { sessionStorage } from './session.server.ts'
-import { verifySessionStorage } from './verification.server.ts'
-import { unverifiedSessionIdKey } from '#app/routes/_auth+/login.tsx'
-import { getRedirectToUrl } from '#app/routes/_auth+/verify.tsx'
-import { twoFAVerificationType } from '#app/routes/settings+/profile.two-factor.tsx'
+import {
+	unverifiedSessionIdKey,
+	verifySessionStorage,
+} from './verification.server.ts'
 
 const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30
 export const getSessionExpirationDate = () =>
@@ -22,6 +23,19 @@ export const sessionIdKey = 'sessionId'
 export const authenticator = new Authenticator<ProviderUser>(
 	connectionSessionStorage,
 )
+export const codeQueryParam = 'code'
+export const targetQueryParam = 'target'
+export const typeQueryParam = 'type'
+export const redirectToQueryParam = 'redirectTo'
+export const twoFAVerificationType = '2fa' satisfies VerificationType
+
+export const VerificationTypeSchema = z.enum([
+	'onboarding',
+	'reset-password',
+	'change-email',
+	'2fa',
+] as const)
+export type VerificationType = z.infer<typeof VerificationTypeSchema>
 
 for (const [providerName, provider] of Object.entries(providers)) {
 	authenticator.use(provider.getAuthStrategy(), providerName)
@@ -30,6 +44,26 @@ for (const [providerName, provider] of Object.entries(providers)) {
 export function getRedirectRoute(request: Request) {
 	const url = new URL(request.url)
 	return url.searchParams.get('redirectTo')
+}
+
+export function getRedirectToUrl({
+	request,
+	type,
+	target,
+	redirectTo,
+}: {
+	request: Request
+	type: VerificationType
+	target: string
+	redirectTo?: string
+}) {
+	const redirectToUrl = new URL(`${getDomainUrl(request)}/verify`)
+	redirectToUrl.searchParams.set(typeQueryParam, type)
+	redirectToUrl.searchParams.set(targetQueryParam, target)
+	if (redirectTo) {
+		redirectToUrl.searchParams.set(redirectToQueryParam, redirectTo)
+	}
+	return redirectToUrl
 }
 
 export async function getUserId(request: Request) {

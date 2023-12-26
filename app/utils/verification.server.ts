@@ -11,3 +11,8 @@ export const verifySessionStorage = createCookieSessionStorage({
 		secure: process.env.NODE_ENV === 'production',
 	},
 })
+
+export const unverifiedSessionIdKey = 'unverified-session-id'
+export const rememberMeKey = 'remember-me'
+export const verifiedTimeKey = 'verified-time'
+export const sessionExpirationTime = 1000 * 5 // 5 seconds for testing

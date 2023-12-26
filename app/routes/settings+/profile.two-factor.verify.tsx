@@ -13,14 +13,13 @@ import { z } from 'zod'
 import { Field } from '#app/components/forms.tsx'
 import { Icon } from '#app/components/ui/icon.tsx'
 import { StatusButton } from '#app/components/ui/status-button.tsx'
-import { requireUserId } from '#app/utils/auth.server.ts'
+import { requireUserId, twoFAVerificationType } from '#app/utils/auth.server.ts'
 import { validateCSRFToken } from '#app/utils/csrf.server.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { useIsPending } from '#app/utils/misc.tsx'
 import { redirectWithToast } from '#app/utils/toast.server.ts'
 import { getTOTPAuthUri } from '@epic-web/totp'
 import { isCodeValid } from '../_auth+/verify.tsx'
-import { twoFAVerificationType } from './profile.two-factor.tsx'
 
 export const handle = {
 	breadcrumb: <Icon name="check">Verify</Icon>,

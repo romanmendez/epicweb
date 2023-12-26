@@ -20,10 +20,13 @@ import {
 	NameSchema,
 	UsernameSchema,
 } from '#app/utils/user-validation.ts'
-import { requireUserId, sessionIdKey } from '#app/utils/auth.server.ts'
+import {
+	requireUserId,
+	sessionIdKey,
+	twoFAVerificationType,
+} from '#app/utils/auth.server.ts'
 import { useUser } from '#app/utils/user.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
-import { twoFAVerificationType } from './profile.two-factor.tsx'
 
 const ProfileFormSchema = z.object({
 	name: NameSchema.optional(),

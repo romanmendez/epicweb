@@ -1,5 +1,4 @@
 import { type Connection, type Password, type User } from '@prisma/client'
-import { z } from 'zod'
 import { redirect } from '@remix-run/node'
 import bcrypt from 'bcryptjs'
 import { Authenticator } from 'remix-auth'
@@ -27,15 +26,7 @@ export const codeQueryParam = 'code'
 export const targetQueryParam = 'target'
 export const typeQueryParam = 'type'
 export const redirectToQueryParam = 'redirectTo'
-export const twoFAVerificationType = '2fa' satisfies VerificationType
-
-export const VerificationTypeSchema = z.enum([
-	'onboarding',
-	'reset-password',
-	'change-email',
-	'2fa',
-] as const)
-export type VerificationType = z.infer<typeof VerificationTypeSchema>
+export const twoFAVerificationType = '2fa'
 
 for (const [providerName, provider] of Object.entries(providers)) {
 	authenticator.use(provider.getAuthStrategy(), providerName)

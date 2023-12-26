@@ -27,9 +27,15 @@ import {
 	redirectToQueryParam,
 	targetQueryParam,
 	typeQueryParam,
-	type VerificationType,
-	VerificationTypeSchema,
 } from '#app/utils/auth.server.ts'
+
+const VerificationTypeSchema = z.enum([
+	'onboarding',
+	'reset-password',
+	'change-email',
+	'2fa',
+] as const)
+type VerificationType = z.infer<typeof VerificationTypeSchema>
 
 const VerifySchema = z.object({
 	[codeQueryParam]: z.string().min(6).max(6),
@@ -40,10 +46,12 @@ const VerifySchema = z.object({
 
 export async function loader({ request }: DataFunctionArgs) {
 	const params = new URL(request.url).searchParams
+	const verifyParser = VerificationTypeSchema.parse
+
 	return json({
 		status: 'idle',
 		typeQueryParam,
-		VerificationTypeSchema,
+		verifyParser,
 		submission: {
 			intent: '',
 			payload: Object.fromEntries(params) as Record<string, unknown>,
@@ -196,9 +204,6 @@ export default function VerifyRoute() {
 	const [searchParams] = useSearchParams()
 	const isPending = useIsPending()
 	const actionData = useActionData<typeof action>()
-	// throw new Error(
-	// 	JSON.stringify({ data: searchParams.get(data.typeQueryParam) }, null, 2),
-	// )
 	const type = VerificationTypeSchema.parse(
 		searchParams.get(data.typeQueryParam),
 	)

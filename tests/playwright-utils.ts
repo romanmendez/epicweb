@@ -2,7 +2,13 @@ import { test as base } from '@playwright/test'
 import { type User as UserModel } from '@prisma/client'
 import { prisma } from '#app/utils/db.server.ts'
 import { createUser } from './db-utils.ts'
-import { getPasswordHash } from '#app/utils/auth.server.ts'
+import {
+	getPasswordHash,
+	getSessionExpirationDate,
+	sessionIdKey,
+} from '#app/utils/auth.server.ts'
+import setCookieParser from 'set-cookie-parser'
+import { sessionStorage } from '#app/utils/session.server.ts'
 
 export * from './db-utils.ts'
 
@@ -52,12 +58,37 @@ async function getOrInsertUser({
 
 export const test = base.extend<{
 	insertNewUser(options?: GetOrInsertUserOptions): Promise<User>
+	login(options?: GetOrInsertUserOptions): Promise<User>
 }>({
 	insertNewUser: async ({}, use) => {
 		let userId: string | undefined = undefined
 		await use(async options => {
 			const user = await getOrInsertUser(options)
 			userId = user.id
+			return user
+		})
+		await prisma.user.deleteMany({ where: { id: userId } })
+	},
+	login: async ({ page }, use) => {
+		let userId: string | undefined = undefined
+		await use(async options => {
+			const user = await getOrInsertUser(options)
+			userId = user.id
+			const session = await prisma.session.create({
+				select: { id: true, expirationDate: true, userId: true },
+				data: {
+					expirationDate: getSessionExpirationDate(),
+					userId: user.id,
+				},
+			})
+			const cookieSession = await sessionStorage.getSession()
+			cookieSession.set(sessionIdKey, session.id)
+			const setCookie = await sessionStorage.commitSession(cookieSession)
+			const cookieConfig = setCookieParser.parseString(setCookie) as any
+
+			await page
+				.context()
+				.addCookies([{ ...cookieConfig, domain: 'localhost' }])
 			return user
 		})
 		await prisma.user.deleteMany({ where: { id: userId } })

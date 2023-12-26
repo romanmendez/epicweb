@@ -28,6 +28,7 @@ import {
 	targetQueryParam,
 	typeQueryParam,
 } from '#app/utils/auth.server.ts'
+import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
 
 const VerificationTypeSchema = z.enum([
 	'onboarding',
@@ -35,7 +36,7 @@ const VerificationTypeSchema = z.enum([
 	'change-email',
 	'2fa',
 ] as const)
-type VerificationType = z.infer<typeof VerificationTypeSchema>
+export type VerificationType = z.infer<typeof VerificationTypeSchema>
 
 const VerifySchema = z.object({
 	[codeQueryParam]: z.string().min(6).max(6),
@@ -50,7 +51,12 @@ export async function loader({ request }: DataFunctionArgs) {
 
 	return json({
 		status: 'idle',
-		typeQueryParam,
+		params: {
+			codeQueryParam,
+			redirectToQueryParam,
+			targetQueryParam,
+			typeQueryParam,
+		},
 		verifyParser,
 		submission: {
 			intent: '',
@@ -205,7 +211,7 @@ export default function VerifyRoute() {
 	const isPending = useIsPending()
 	const actionData = useActionData<typeof action>()
 	const type = VerificationTypeSchema.parse(
-		searchParams.get(data.typeQueryParam),
+		searchParams.get(data.params.typeQueryParam),
 	)
 
 	const checkEmail = (
@@ -239,13 +245,12 @@ export default function VerifyRoute() {
 			return parse(formData, { schema: VerifySchema })
 		},
 		defaultValue: {
-			code: searchParams.get(codeQueryParam) ?? '',
+			code: searchParams.get(data.params.codeQueryParam) ?? '',
 			type,
-			target: searchParams.get(targetQueryParam) ?? '',
-			redirectTo: searchParams.get(redirectToQueryParam) ?? '',
+			target: searchParams.get(data.params.targetQueryParam) ?? '',
+			redirectTo: searchParams.get(data.params.redirectToQueryParam) ?? '',
 		},
 	})
-
 	return (
 		<div className="container flex flex-col justify-center pb-32 pt-20">
 			<div className="text-center">{headings[type]}</div>
@@ -261,20 +266,24 @@ export default function VerifyRoute() {
 						<AuthenticityTokenInput />
 						<Field
 							labelProps={{
-								htmlFor: fields[codeQueryParam].id,
+								htmlFor: fields[data.params.codeQueryParam].id,
 								children: 'Code',
 							}}
-							inputProps={conform.input(fields[codeQueryParam])}
-							errors={fields[codeQueryParam].errors}
+							inputProps={conform.input(fields[data.params.codeQueryParam])}
+							errors={fields[data.params.codeQueryParam].errors}
 						/>
 						<input
-							{...conform.input(fields[typeQueryParam], { type: 'hidden' })}
+							{...conform.input(fields[data.params.typeQueryParam], {
+								type: 'hidden',
+							})}
 						/>
 						<input
-							{...conform.input(fields[targetQueryParam], { type: 'hidden' })}
+							{...conform.input(fields[data.params.targetQueryParam], {
+								type: 'hidden',
+							})}
 						/>
 						<input
-							{...conform.input(fields[redirectToQueryParam], {
+							{...conform.input(fields[data.params.redirectToQueryParam], {
 								type: 'hidden',
 							})}
 						/>
@@ -291,4 +300,8 @@ export default function VerifyRoute() {
 			</div>
 		</div>
 	)
+}
+
+export function ErrorBoundary() {
+	return <GeneralErrorBoundary />
 }

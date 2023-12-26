@@ -13,6 +13,7 @@ import {
 	unverifiedSessionIdKey,
 	verifySessionStorage,
 } from './verification.server.ts'
+import { type VerificationType } from '#app/routes/_auth+/verify.tsx'
 
 const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30
 export const getSessionExpirationDate = () =>

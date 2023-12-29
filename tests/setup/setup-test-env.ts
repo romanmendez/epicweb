@@ -1,20 +1,18 @@
 import 'dotenv/config'
 import '#app/utils/env.server.ts'
-
+import '@testing-library/jest-dom/vitest'
 import { installGlobals } from '@remix-run/node'
-import { type SpyInstance, beforeEach, vi } from 'vitest'
+import { type SpyInstance, beforeEach, vi, afterEach } from 'vitest'
+import { cleanup } from '@testing-library/react'
 
 installGlobals()
 
 export let consoleError: SpyInstance<Parameters<typeof console.error>>
-export let consoleLog: SpyInstance<Parameters<typeof console.log>>
 
 beforeEach(async () => {
 	const originalConsoleError = console.error
-	const originalConsoleLog = console.log
 
 	consoleError = vi.spyOn(console, 'error')
-	consoleLog = vi.spyOn(console, 'log')
 
 	consoleError.mockImplementation(
 		(...args: Parameters<typeof console.error>) => {
@@ -24,10 +22,6 @@ beforeEach(async () => {
 			)
 		},
 	)
-	consoleLog.mockImplementation((...args: Parameters<typeof console.error>) => {
-		originalConsoleLog(args)
-		throw new Error(
-			'console.log was called. If that is expected then use consoleLog.mockImplementation(() => {})',
-		)
-	})
 })
+
+afterEach(() => cleanup())

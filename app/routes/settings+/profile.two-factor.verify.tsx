@@ -26,7 +26,7 @@ export const handle = {
 }
 
 const VerifySchema = z.object({
-	code: z.string().min(6).max(6),
+	code: z.string().min(6).max(6).optional(),
 })
 
 export const twoFAVerifyVerificationType = '2fa-verify'
@@ -70,7 +70,7 @@ export async function action({ request }: DataFunctionArgs) {
 		schema: () =>
 			VerifySchema.superRefine(async (data, ctx) => {
 				const codeIsValid = await isCodeValid({
-					code: data.code,
+					code: data.code ?? '',
 					type: twoFAVerifyVerificationType,
 					target: userId,
 				})

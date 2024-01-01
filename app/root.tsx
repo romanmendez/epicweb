@@ -1,65 +1,54 @@
+import os from 'node:os'
+import { useForm } from '@conform-to/react'
+import { parse } from '@conform-to/zod'
 import { cssBundleHref } from '@remix-run/css-bundle'
 import {
-	type DataFunctionArgs,
 	json,
+	type DataFunctionArgs,
 	type LinksFunction,
 } from '@remix-run/node'
 import {
-	Meta,
-	Links,
-	ScrollRestoration,
-	Scripts,
-	LiveReload,
 	Link,
+	Links,
+	LiveReload,
+	Meta,
 	Outlet,
-	useLoaderData,
-	type MetaFunction,
-	useMatches,
+	Scripts,
+	ScrollRestoration,
 	useFetcher,
-	Form,
-	useLocation,
-	useSubmit,
+	useFetchers,
+	useLoaderData,
+	useMatches,
+	type MetaFunction,
 } from '@remix-run/react'
-import { csrf } from './utils/csrf.server.ts'
+import { useEffect } from 'react'
+import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
 import { HoneypotProvider } from 'remix-utils/honeypot/react'
 import { Toaster, toast as showToast } from 'sonner'
-import { AuthenticityTokenProvider } from 'remix-utils/csrf/react'
-import faviconAssetUrl from '#app/assets/favicon.svg'
-import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
-import { SearchBar } from '#app/components/search-bar.tsx'
-import fontStylestylesheetUrl from '#app/styles/font.css'
-import tailwindStylesheetUrl from '#app/styles/tailwind.css'
-import { getEnv } from '#app/utils/env.server.ts'
-import { honeypot } from './utils/honeypot.server.ts'
-import { getTheme, setTheme, type Theme } from './utils/theme.server.ts'
-import { useForm } from '@conform-to/react'
-import { parse } from '@conform-to/zod'
 import { z } from 'zod'
-import { Icon } from './components/ui/icon.tsx'
+import faviconAssetUrl from './assets/favicon.svg'
+import { GeneralErrorBoundary } from './components/error-boundary.tsx'
 import { ErrorList } from './components/forms.tsx'
+import { SearchBar } from './components/search-bar.tsx'
+import { Spacer } from './components/spacer.tsx'
+import { Button } from './components/ui/button.tsx'
+import { Icon } from './components/ui/icon.tsx'
+import fontStylestylesheetUrl from './styles/font.css'
+import tailwindStylesheetUrl from './styles/tailwind.css'
+import { getUserId } from './utils/auth.server.ts'
+import { csrf } from './utils/csrf.server.ts'
+import { prisma } from './utils/db.server.ts'
+import { getEnv } from './utils/env.server.ts'
+import { honeypot } from './utils/honeypot.server.ts'
 import {
 	combineHeaders,
 	getUserImgSrc,
 	invariantResponse,
 } from './utils/misc.tsx'
-import { getToast, type Toast } from './utils/toast.server.ts'
-import { Spacer } from './components/spacer.tsx'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button } from './components/ui/button.tsx'
-import { prisma } from './utils/db.server.ts'
-import { useOptionalUser } from './utils/user.ts'
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from './components/ui/alert-dialog.tsx'
 import { userHasRole } from './utils/permissions.ts'
-import { getUserId } from './utils/auth.server.ts'
+import { getTheme, setTheme, type Theme } from './utils/theme.server.ts'
+import { getToast, type Toast } from './utils/toast.server.ts'
+import { useOptionalUser } from './utils/user.ts'
 
 export const links: LinksFunction = () => {
 	return [
@@ -72,40 +61,37 @@ export const links: LinksFunction = () => {
 
 export async function loader({ request }: DataFunctionArgs) {
 	const [csrfToken, csrfCookieHeader] = await csrf.commitToken(request)
-	const honeypotProps = honeypot.getInputProps()
+	const honeyProps = honeypot.getInputProps()
 	const { toast, headers: toastHeaders } = await getToast(request)
-
 	const userId = await getUserId(request)
 	const user = userId
-		? await prisma.user.findUnique({
+		? await prisma.user.findUniqueOrThrow({
 				select: {
 					id: true,
-					username: true,
 					name: true,
+					username: true,
 					image: { select: { id: true } },
-					email: true,
-					createdAt: true,
 					roles: {
 						select: {
 							name: true,
 							permissions: {
-								select: { entity: true, access: true, action: true },
+								select: { entity: true, action: true, access: true },
 							},
 						},
 					},
 				},
 				where: { id: userId },
-		  })
+			})
 		: null
-
 	return json(
 		{
+			username: os.userInfo().username,
 			user,
-			ENV: getEnv(),
 			theme: getTheme(request),
 			toast,
-			honeypotProps,
+			ENV: getEnv(),
 			csrfToken,
+			honeyProps,
 		},
 		{
 			headers: combineHeaders(
@@ -116,50 +102,49 @@ export async function loader({ request }: DataFunctionArgs) {
 	)
 }
 
+const ThemeFormSchema = z.object({
+	theme: z.enum(['light', 'dark']),
+})
+
 export async function action({ request }: DataFunctionArgs) {
 	const formData = await request.formData()
 	invariantResponse(
 		formData.get('intent') === 'update-theme',
-		'Invalid indent',
+		'Invalid intent',
 		{ status: 400 },
 	)
-	const submission = parse(formData, { schema: ThemeFormSchema })
-
+	const submission = parse(formData, {
+		schema: ThemeFormSchema,
+	})
 	if (submission.intent !== 'submit') {
 		return json({ status: 'success', submission } as const)
 	}
 	if (!submission.value) {
 		return json({ status: 'error', submission } as const, { status: 400 })
 	}
+	const { theme } = submission.value
+
 	const responseInit = {
-		headers: {
-			'set-cookie': setTheme(submission.value.theme),
-		},
+		headers: { 'set-cookie': setTheme(theme) },
 	}
 	return json({ success: true, submission }, responseInit)
 }
-
-const ThemeFormSchema = z.object({
-	theme: z.enum(['light', 'dark']),
-})
 
 function Document({
 	children,
 	theme,
 	env,
-	isLoggedIn = false,
 }: {
 	children: React.ReactNode
 	theme?: Theme
 	env?: Record<string, string>
-	isLoggedIn?: boolean
 }) {
 	return (
 		<html lang="en" className={`${theme} h-full overflow-x-hidden`}>
 			<head>
 				<Meta />
+				<meta charSet="utf-8" />
 				<meta name="viewport" content="width=device-width,initial-scale=1" />
-				<meta name="charSet" content="utf-8" />
 				<Links />
 			</head>
 			<body className="flex h-full flex-col justify-between bg-background text-foreground">
@@ -169,7 +154,6 @@ function Document({
 						__html: `window.ENV = ${JSON.stringify(env)}`,
 					}}
 				/>
-				{isLoggedIn ? <LogoutTimer /> : null}
 				<Toaster closeButton position="top-center" />
 				<ScrollRestoration />
 				<Scripts />
@@ -179,29 +163,21 @@ function Document({
 	)
 }
 
-export function App() {
+function App() {
 	const data = useLoaderData<typeof loader>()
-	const matches = useMatches()
 	const theme = useTheme()
 	const user = useOptionalUser()
+	const matches = useMatches()
 	const userIsAdmin = userHasRole(user, 'admin')
-	const isNotHome = matches.find(m => m.pathname.match(/\/\S+/))
 	const isOnSearchPage = matches.find(m => m.id === 'routes/users+/index')
-
 	return (
-		<Document theme={theme} env={data.ENV} isLoggedIn={Boolean(user)}>
-			<header className="container mx-auto py-6">
-				<nav className="flex items-center justify-between gap-6">
-					{isNotHome ? (
-						<Link to=".." relative="path">
-							<div className="font-bold">back</div>
-						</Link>
-					) : (
-						<Link to="/">
-							<div className="font-light">epic</div>
-							<div className="font-bold">notes</div>
-						</Link>
-					)}
+		<Document theme={theme} env={data.ENV}>
+			<header className="container px-6 py-4 sm:px-8 sm:py-6">
+				<nav className="flex items-center justify-between gap-4 sm:gap-6">
+					<Link to="/">
+						<div className="font-light">epic</div>
+						<div className="font-bold">notes</div>
+					</Link>
 					{isOnSearchPage ? null : (
 						<div className="ml-auto max-w-sm flex-1">
 							<SearchBar status="idle" />
@@ -254,7 +230,7 @@ export function App() {
 					<div className="font-bold">notes</div>
 				</Link>
 				<div className="flex items-center gap-2">
-					<p>Built with ♥️ by Román</p>
+					<p>Built with ♥️ by {data.username}</p>
 					<ThemeSwitch userPreference={theme} />
 				</div>
 			</div>
@@ -267,18 +243,20 @@ export function App() {
 export default function AppWithProviders() {
 	const data = useLoaderData<typeof loader>()
 	return (
-		<AuthenticityTokenProvider token={data.csrfToken}>
-			<HoneypotProvider {...data.honeypotProps}>
+		<HoneypotProvider {...data.honeyProps}>
+			<AuthenticityTokenProvider token={data.csrfToken}>
 				<App />
-			</HoneypotProvider>
-		</AuthenticityTokenProvider>
+			</AuthenticityTokenProvider>
+		</HoneypotProvider>
 	)
 }
 
-const themeFetcherKey = 'theme-fetcher'
-function useTheme(): Theme {
+function useTheme() {
 	const data = useLoaderData<typeof loader>()
-	const themeFetcher = useFetcher({ key: themeFetcherKey })
+	const fetchers = useFetchers()
+	const themeFetcher = fetchers.find(
+		f => f.formData?.get('intent') === 'update-theme',
+	)
 	const optimisticTheme = themeFetcher?.formData?.get('theme')
 	if (optimisticTheme === 'light' || optimisticTheme === 'dark') {
 		return optimisticTheme
@@ -287,7 +265,8 @@ function useTheme(): Theme {
 }
 
 function ThemeSwitch({ userPreference }: { userPreference?: Theme }) {
-	const fetcher = useFetcher<typeof action>({ key: themeFetcherKey })
+	const fetcher = useFetcher<typeof action>()
+
 	const [form] = useForm({
 		id: 'theme-switch',
 		lastSubmission: fetcher.data?.submission,
@@ -295,6 +274,7 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme }) {
 			return parse(formData, { schema: ThemeFormSchema })
 		},
 	})
+
 	const mode = userPreference ?? 'light'
 	const nextMode = mode === 'light' ? 'dark' : 'light'
 	const modeLabel = {
@@ -311,7 +291,7 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme }) {
 	}
 
 	return (
-		<fetcher.Form method="POST">
+		<fetcher.Form method="POST" {...form.props}>
 			<input type="hidden" name="theme" value={nextMode} />
 			<div className="flex gap-2">
 				<button
@@ -328,67 +308,6 @@ function ThemeSwitch({ userPreference }: { userPreference?: Theme }) {
 	)
 }
 
-function LogoutTimer() {
-	const [status, setStatus] = useState<'idle' | 'show-modal'>('idle')
-	const location = useLocation()
-	const submit = useSubmit()
-
-	const logoutTime = 1000 * 60 * 60 // 1 hour
-	const modalTime = logoutTime - 1000 * 60 * 2 // 2 minutes
-	const modalTimer = useRef<ReturnType<typeof setTimeout>>()
-	const logoutTimer = useRef<ReturnType<typeof setTimeout>>()
-
-	const logout = useCallback(() => {
-		submit(null, { method: 'POST', action: '/logout' })
-	}, [submit])
-
-	const cleanupTimers = useCallback(() => {
-		clearTimeout(modalTimer.current)
-		clearTimeout(logoutTimer.current)
-	}, [])
-
-	const resetTimers = useCallback(() => {
-		cleanupTimers()
-		modalTimer.current = setTimeout(() => {
-			setStatus('show-modal')
-		}, modalTime)
-		logoutTimer.current = setTimeout(logout, logoutTime)
-	}, [cleanupTimers, logout, logoutTime, modalTime])
-
-	useEffect(() => resetTimers(), [resetTimers, location.key])
-	useEffect(() => cleanupTimers, [cleanupTimers])
-
-	function closeModal() {
-		setStatus('idle')
-		resetTimers()
-	}
-
-	return (
-		<AlertDialog
-			aria-label="Pending Logout Notification"
-			open={status === 'show-modal'}
-		>
-			<AlertDialogContent>
-				<AlertDialogHeader>
-					<AlertDialogTitle>Are you still there?</AlertDialogTitle>
-				</AlertDialogHeader>
-				<AlertDialogDescription>
-					You are going to be logged out due to inactivity. Close this modal to
-					stay logged in.
-				</AlertDialogDescription>
-				<AlertDialogFooter className="flex items-end gap-8">
-					<AlertDialogCancel onClick={closeModal}>
-						Remain Logged In
-					</AlertDialogCancel>
-					<Form method="POST" action="/logout">
-						<AlertDialogAction type="submit">Logout</AlertDialogAction>
-					</Form>
-				</AlertDialogFooter>
-			</AlertDialogContent>
-		</AlertDialog>
-	)
-}
-
 function ShowToast({ toast }: { toast: Toast }) {
 	const { id, type, title, description } = toast
 	useEffect(() => {
@@ -402,21 +321,16 @@ function ShowToast({ toast }: { toast: Toast }) {
 export const meta: MetaFunction = () => {
 	return [
 		{ title: 'Epic Notes' },
-		{
-			name: 'description',
-			content: 'A note taking app made during the Epic Web course',
-		},
+		{ name: 'description', content: `Your own captain's log` },
 	]
 }
 
 export function ErrorBoundary() {
 	return (
 		<Document>
-			<GeneralErrorBoundary
-				statusHandlers={{
-					404: () => <p>This page wasn't found for some reason.</p>,
-				}}
-			/>
+			<div className="flex-1">
+				<GeneralErrorBoundary />
+			</div>
 		</Document>
 	)
 }

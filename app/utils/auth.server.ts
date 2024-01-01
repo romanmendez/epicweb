@@ -13,6 +13,7 @@ import {
 	unverifiedSessionIdKey,
 	verifySessionStorage,
 } from './verification.server.ts'
+import { type VerificationType } from '#app/routes/_auth+/verify.tsx'
 
 const SESSION_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 30
 export const getSessionExpirationDate = () =>
@@ -99,16 +100,18 @@ export async function requireAnonymous(request: Request) {
 	)
 	const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey)
 	if (unverifiedSessionId) {
-		const { userId } = await prisma.session.findFirstOrThrow({
+		const session = await prisma.session.findFirst({
 			where: { id: unverifiedSessionId },
 			select: { userId: true },
 		})
-		const redirectUrl = getRedirectToUrl({
-			request,
-			type: twoFAVerificationType,
-			target: userId,
-		})
-		throw redirect(redirectUrl.toString())
+		if (session) {
+			const redirectUrl = getRedirectToUrl({
+				request,
+				type: twoFAVerificationType,
+				target: session.userId,
+			})
+			throw redirect(redirectUrl.toString())
+		}
 	}
 	const userId = await getUserId(request)
 	if (userId) {

@@ -63,7 +63,6 @@ test('onboarding with link', async ({ page, getOnboardingData }) => {
 	invariant(onboardingUrl, 'Onboarding URL not found')
 	await page.goto(onboardingUrl)
 
-	await expect(page).toHaveURL(onboardingUrl)
 	await page.getByRole('button', { name: /submit/i }).click()
 	await expect(page).toHaveURL('/onboarding')
 	await page

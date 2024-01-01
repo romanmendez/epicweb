@@ -1,10 +1,11 @@
 import { type Submission, conform, useForm } from '@conform-to/react'
 import { getFieldsetConstraint, parse } from '@conform-to/zod'
-import { json, type DataFunctionArgs } from '@remix-run/node'
+import { json, type DataFunctionArgs, redirect } from '@remix-run/node'
 import {
 	Form,
 	useActionData,
 	useLoaderData,
+	useNavigation,
 	useSearchParams,
 } from '@remix-run/react'
 import { AuthenticityTokenInput } from 'remix-utils/csrf/react'
@@ -29,6 +30,10 @@ import {
 	typeQueryParam,
 } from '#app/utils/auth.server.ts'
 import { GeneralErrorBoundary } from '#app/components/error-boundary.tsx'
+import {
+	unverifiedSessionIdKey,
+	verifySessionStorage,
+} from '#app/utils/verification.server.ts'
 
 const VerificationTypeSchema = z.enum([
 	'onboarding',
@@ -39,7 +44,7 @@ const VerificationTypeSchema = z.enum([
 export type VerificationType = z.infer<typeof VerificationTypeSchema>
 
 const VerifySchema = z.object({
-	[codeQueryParam]: z.string().min(6).max(6),
+	[codeQueryParam]: z.string().min(6).max(6).optional(),
 	[typeQueryParam]: VerificationTypeSchema,
 	[targetQueryParam]: z.string(),
 	[redirectToQueryParam]: z.string().optional(),
@@ -68,6 +73,20 @@ export async function loader({ request }: DataFunctionArgs) {
 
 export async function action({ request }: DataFunctionArgs) {
 	const formData = await request.formData()
+	if (formData.get('intent') === 'cancel') {
+		const verifySession = await verifySessionStorage.getSession(
+			request.headers.get('cookie'),
+		)
+		const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey)
+		await prisma.session.deleteMany({
+			where: { id: unverifiedSessionId },
+		})
+		return redirect('/', {
+			headers: {
+				'set-cookie': await verifySessionStorage.destroySession(verifySession),
+			},
+		})
+	}
 	await validateCSRFToken(formData, request.headers)
 	return validateRequest(request, formData)
 }
@@ -157,7 +176,11 @@ async function validateRequest(
 	const submission = await parse(body, {
 		schema: () =>
 			VerifySchema.superRefine(async (data, ctx) => {
-				const codeIsValid = await isCodeValid(data)
+				const codeIsValid = await isCodeValid({
+					code: data.code ?? '',
+					type: data.type,
+					target: data.target,
+				})
 				if (!codeIsValid) {
 					ctx.addIssue({
 						path: ['code'],
@@ -170,7 +193,6 @@ async function validateRequest(
 
 		async: true,
 	})
-
 	if (submission.intent !== 'submit') {
 		return json({ status: 'idle', submission } as const)
 	}
@@ -208,8 +230,12 @@ async function validateRequest(
 export default function VerifyRoute() {
 	const data = useLoaderData<typeof loader>()
 	const [searchParams] = useSearchParams()
-	const isPending = useIsPending()
+	const navigation = useNavigation()
 	const actionData = useActionData<typeof action>()
+
+	const isPending = useIsPending()
+	const pendingIntent = isPending ? navigation.formData?.get('intent') : null
+
 	const type = VerificationTypeSchema.parse(
 		searchParams.get(data.params.typeQueryParam),
 	)
@@ -294,6 +320,18 @@ export default function VerifyRoute() {
 							disabled={isPending}
 						>
 							Submit
+						</StatusButton>
+						<Spacer size="4xs" />
+						<StatusButton
+							className="w-full"
+							variant="secondary"
+							status={pendingIntent === 'cancel' ? 'pending' : 'idle'}
+							type="submit"
+							name="intent"
+							value="cancel"
+							disabled={isPending}
+						>
+							Cancel
 						</StatusButton>
 					</Form>
 				</div>

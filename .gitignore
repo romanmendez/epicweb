@@ -23,6 +23,6 @@ node_modules
 *.ignored.*
 
 # generated files
-/app/components/ui/icons
+# /app/components/ui/icons
 
 tsconfig.tsbuildinfo

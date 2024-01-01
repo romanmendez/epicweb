@@ -100,16 +100,18 @@ export async function requireAnonymous(request: Request) {
 	)
 	const unverifiedSessionId = verifySession.get(unverifiedSessionIdKey)
 	if (unverifiedSessionId) {
-		const { userId } = await prisma.session.findFirstOrThrow({
+		const session = await prisma.session.findFirst({
 			where: { id: unverifiedSessionId },
 			select: { userId: true },
 		})
-		const redirectUrl = getRedirectToUrl({
-			request,
-			type: twoFAVerificationType,
-			target: userId,
-		})
-		throw redirect(redirectUrl.toString())
+		if (session) {
+			const redirectUrl = getRedirectToUrl({
+				request,
+				type: twoFAVerificationType,
+				target: session.userId,
+			})
+			throw redirect(redirectUrl.toString())
+		}
 	}
 	const userId = await getUserId(request)
 	if (userId) {

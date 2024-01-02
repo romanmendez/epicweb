@@ -35,7 +35,7 @@ export async function loader({ request, params }: DataFunctionArgs) {
 		.catch(async error => {
 			console.error(error)
 			throw await redirectWithToast(
-				'/',
+				'/login',
 				{
 					type: 'error',
 					title: `Auth Error`,

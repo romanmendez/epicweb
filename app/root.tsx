@@ -83,6 +83,7 @@ export async function loader({ request }: DataFunctionArgs) {
 				where: { id: userId },
 			})
 		: null
+	console.log(user?.roles)
 	return json(
 		{
 			username: os.userInfo().username,

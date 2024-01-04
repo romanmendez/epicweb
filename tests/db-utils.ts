@@ -1,6 +1,11 @@
+import fs from 'node:fs'
 import { faker } from '@faker-js/faker'
 import { UniqueEnforcer } from 'enforce-unique'
 import bcrypt from 'bcryptjs'
+import { prisma } from '#app/utils/db.server.ts'
+import { getPasswordHash } from '#app/utils/auth.server.ts'
+import setCookieParser from 'set-cookie-parser'
+import { getUserImages } from '#prisma/seed.ts'
 
 const uniqueUsernameEnforcer = new UniqueEnforcer()
 
@@ -33,4 +38,112 @@ export function createPassword(password: string = faker.internet.password()) {
 	return {
 		hash: bcrypt.hashSync(password),
 	}
+}
+
+let noteImages: Array<Awaited<ReturnType<typeof img>>> | undefined
+export async function getNoteImages() {
+	if (noteImages) return noteImages
+
+	noteImages = await Promise.all([
+		img({
+			altText: 'a nice country house',
+			filepath: './tests/fixtures/images/notes/0.png',
+		}),
+		img({
+			altText: 'a city scape',
+			filepath: './tests/fixtures/images/notes/1.png',
+		}),
+		img({
+			altText: 'a sunrise',
+			filepath: './tests/fixtures/images/notes/2.png',
+		}),
+		img({
+			altText: 'a group of friends',
+			filepath: './tests/fixtures/images/notes/3.png',
+		}),
+		img({
+			altText: 'friends being inclusive of someone who looks lonely',
+			filepath: './tests/fixtures/images/notes/4.png',
+		}),
+		img({
+			altText: 'an illustration of a hot air balloon',
+			filepath: './tests/fixtures/images/notes/5.png',
+		}),
+		img({
+			altText:
+				'an office full of laptops and other office equipment that look like it was abandond in a rush out of the building in an emergency years ago.',
+			filepath: './tests/fixtures/images/notes/6.png',
+		}),
+		img({
+			altText: 'a rusty lock',
+			filepath: './tests/fixtures/images/notes/7.png',
+		}),
+		img({
+			altText: 'something very happy in nature',
+			filepath: './tests/fixtures/images/notes/8.png',
+		}),
+		img({
+			altText: `someone at the end of a cry session who's starting to feel a little better.`,
+			filepath: './tests/fixtures/images/notes/9.png',
+		}),
+	])
+
+	return noteImages
+}
+
+export const insertedUsers = new Set<string>()
+
+export async function insertNewUser({
+	username,
+	password,
+	email,
+}: {
+	username?: string
+	password?: string
+	email?: string
+} = {}) {
+	const userData = createUser()
+	username ??= userData.username
+	password ??= userData.username
+	email ??= userData.email
+	const user = await prisma.user.create({
+		select: {
+			id: true,
+			username: true,
+			email: true,
+			name: true,
+			updatedAt: true,
+			createdAt: true,
+		},
+		data: {
+			...userData,
+			username,
+			email,
+			roles: { connect: { name: 'user' } },
+			password: { create: { hash: await getPasswordHash(password) } },
+		},
+	})
+	insertedUsers.add(user.id)
+	return user as typeof user & { name: string }
+}
+
+export async function img({
+	altText,
+	filepath,
+}: {
+	altText?: string
+	filepath: string
+}) {
+	return {
+		altText,
+		contentType: filepath.endsWith('.png') ? 'image/png' : 'image/jpeg',
+		blob: await fs.promises.readFile(filepath),
+	}
+}
+
+export function convertSetCookieToCookie(setCookie: string) {
+	const parsedCookie = setCookieParser.parseString(setCookie)
+	return new URLSearchParams({
+		[parsedCookie.name]: parsedCookie.value,
+	}).toString()
 }

@@ -150,7 +150,6 @@ export async function action({ request, params }: DataFunctionArgs) {
 	}
 
 	const { session, remember, redirectTo } = submission.value
-	console.log(redirectTo, 'redirectTo in onboarding provider action')
 
 	const cookieSession = await sessionStorage.getSession(
 		request.headers.get('cookie'),
@@ -197,7 +196,6 @@ export default function SignupRoute() {
 	const isPending = useIsPending()
 	const [searchParams] = useSearchParams()
 	const redirectTo = searchParams.get('redirectTo')
-	console.log(redirectTo, 'redirectTo in onboarding provider component')
 
 	const [form, fields] = useForm({
 		id: 'signup-form',

@@ -1,40 +1,48 @@
 import fs from 'node:fs'
 import { faker } from '@faker-js/faker'
-import { PrismaClient } from '@prisma/client'
-import { promiseHash } from 'remix-utils/promise'
-import { createPassword, createUser } from '#tests/db-utils.ts'
-import { insertGitHubUser } from '#tests/mocks/github.ts'
+import bcrypt from 'bcryptjs'
+import { UniqueEnforcer } from 'enforce-unique'
+import { getPasswordHash } from '#app/utils/auth.server.ts'
+import { prisma } from '#app/utils/db.server.ts'
 
-const prisma = new PrismaClient()
+const uniqueUsernameEnforcer = new UniqueEnforcer()
 
-async function seed() {
-	console.log('🌱 Seeding...')
-	console.time(`🌱 Database has been seeded`)
+export function createUser() {
+	const firstName = faker.person.firstName()
+	const lastName = faker.person.lastName()
 
-	console.time('🧹 Cleaned up the database...')
-	await prisma.user.deleteMany()
-	await prisma.verification.deleteMany()
-	console.timeEnd('🧹 Cleaned up the database...')
-
-	const totalUsers = 5
-	const minNotes = 5
-	const maxNotes = 10
-
-	async function img({
-		altText,
-		filepath,
-	}: {
-		altText?: string
-		filepath: string
-	}) {
-		return {
-			altText,
-			contentType: filepath.endsWith('.png') ? 'image/png' : 'image/jpeg',
-			blob: await fs.promises.readFile(filepath),
-		}
+	const username = uniqueUsernameEnforcer
+		.enforce(() => {
+			return (
+				faker.string.alphanumeric({ length: 2 }) +
+				'_' +
+				faker.internet.userName({
+					firstName: firstName.toLowerCase(),
+					lastName: lastName.toLowerCase(),
+				})
+			)
+		})
+		.slice(0, 20)
+		.toLowerCase()
+		.replace(/[^a-z0-9_]/g, '_')
+	return {
+		username,
+		name: `${firstName} ${lastName}`,
+		email: `${username}@example.com`,
 	}
-	console.time(`👤 Created ${totalUsers} users...`)
-	const noteImages = await Promise.all([
+}
+
+export function createPassword(password: string = faker.internet.password()) {
+	return {
+		hash: bcrypt.hashSync(password, 10),
+	}
+}
+
+let noteImages: Array<Awaited<ReturnType<typeof img>>> | undefined
+export async function getNoteImages() {
+	if (noteImages) return noteImages
+
+	noteImages = await Promise.all([
 		img({
 			altText: 'a nice country house',
 			filepath: './tests/fixtures/images/notes/0.png',
@@ -78,119 +86,57 @@ async function seed() {
 		}),
 	])
 
-	const userImages = await Promise.all(
+	return noteImages
+}
+
+export const insertedUsers = new Set<string>()
+
+export async function insertNewUser({
+	username,
+	password,
+	email,
+}: { username?: string; password?: string; email?: string } = {}) {
+	const userData = createUser()
+	username ??= userData.username
+	password ??= userData.username
+	email ??= userData.email
+	const user = await prisma.user.create({
+		select: { id: true, name: true, username: true, email: true },
+		data: {
+			...userData,
+			email,
+			username,
+			roles: { connect: { name: 'user' } },
+			password: { create: { hash: await getPasswordHash(password) } },
+		},
+	})
+	insertedUsers.add(user.id)
+	return user as typeof user & { name: string }
+}
+
+let userImages: Array<Awaited<ReturnType<typeof img>>> | undefined
+export async function getUserImages() {
+	if (userImages) return userImages
+
+	userImages = await Promise.all(
 		Array.from({ length: 10 }, (_, index) =>
 			img({ filepath: `./tests/fixtures/images/user/${index}.jpg` }),
 		),
 	)
 
-	for (let n = 1; n < totalUsers; n++) {
-		const user = createUser()
-		await prisma.user
-			.create({
-				data: {
-					...user,
-					roles: { connect: { name: 'user' } },
-					password: {
-						create: createPassword(user.username),
-					},
-					image: { create: userImages[n % 10] },
-					notes: {
-						create: Array.from({
-							length: faker.number.int({ min: minNotes, max: maxNotes }),
-						}).map(() => {
-							return {
-								title: faker.lorem.sentence(1),
-								content: faker.lorem.paragraphs(),
-								images: {
-									create: Array.from({
-										length: faker.number.int({ min: 1, max: 3 }),
-									}).map(() => {
-										const imageNumber = faker.number.int(noteImages.length - 1)
-										return noteImages[imageNumber]
-									}),
-								},
-							}
-						}),
-					},
-				},
-			})
-			.catch(e => console.log('error creating user', e))
-	}
-	console.timeEnd(`👤 Created ${totalUsers} users...`)
-
-	console.time(`🐨 Created user "kody"`)
-
-	const kodyImages = await promiseHash({
-		kodyUser: img({ filepath: './tests/fixtures/images/user/kody.png' }),
-		cuteKoala: img({
-			altText: 'an adorable koala cartoon illustration',
-			filepath: './tests/fixtures/images/kody-notes/cute-koala.png',
-		}),
-		koalaEating: img({
-			altText: 'a cartoon illustration of a koala in a tree eating',
-			filepath: './tests/fixtures/images/kody-notes/koala-eating.png',
-		}),
-		koalaCuddle: img({
-			altText: 'a cartoon illustration of koalas cuddling',
-			filepath: './tests/fixtures/images/kody-notes/koala-cuddle.png',
-		}),
-		mountain: img({
-			altText: 'a beautiful mountain covered in snow',
-			filepath: './tests/fixtures/images/kody-notes/mountain.png',
-		}),
-		koalaCoder: img({
-			altText: 'a koala coding at the computer',
-			filepath: './tests/fixtures/images/kody-notes/koala-coder.png',
-		}),
-		koalaMentor: img({
-			altText:
-				'a koala in a friendly and helpful posture. The Koala is standing next to and teaching a woman who is coding on a computer and shows positive signs of learning and understanding what is being explained.',
-			filepath: './tests/fixtures/images/kody-notes/koala-mentor.png',
-		}),
-		koalaSoccer: img({
-			altText: 'a cute cartoon koala kicking a soccer ball on a soccer field ',
-			filepath: './tests/fixtures/images/kody-notes/koala-soccer.png',
-		}),
-	})
-
-	await insertGitHubUser('MOCK_GITHUB_CODE_KODY', {
-		primaryEmailAddress: 'kody@epicweb.dev',
-	})
-
-	await prisma.user.create({
-		data: {
-			email: 'kody@epicweb.dev',
-			username: 'kody',
-			password: { create: createPassword('kodylovesyou') },
-			name: 'Kody',
-			image: { create: kodyImages.kodyUser },
-			roles: { connect: [{ name: 'user' }, { name: 'admin' }] },
-			notes: {
-				create: [
-					{
-						id: 'd27a197e',
-						title: 'Basic Koala Facts',
-						content:
-							'Koalas are found in the eucalyptus forests of eastern Australia. They have grey fur with a cream-coloured chest, and strong, clawed feet, perfect for living in the branches of trees!',
-						images: {
-							create: [kodyImages.cuteKoala, kodyImages.koalaEating],
-						},
-					},
-				],
-			},
-		},
-	})
-	console.timeEnd(`🐨 Created user "kody"`)
-
-	console.timeEnd(`🌱 Database has been seeded`)
+	return userImages
 }
 
-seed()
-	.catch(e => {
-		console.error(e)
-		process.exit(1)
-	})
-	.finally(async () => {
-		await prisma.$disconnect()
-	})
+export async function img({
+	altText,
+	filepath,
+}: {
+	altText?: string
+	filepath: string
+}) {
+	return {
+		altText,
+		contentType: filepath.endsWith('.png') ? 'image/png' : 'image/jpeg',
+		blob: await fs.promises.readFile(filepath),
+	}
+}

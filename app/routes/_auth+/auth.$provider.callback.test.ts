@@ -1,40 +1,27 @@
 import { http } from 'msw'
-import * as setCookieParser from 'set-cookie-parser'
 import { server } from '#tests/mocks/index.ts'
-import { afterAll, afterEach, beforeAll, expect, test } from 'vitest'
+import { afterEach, expect, test } from 'vitest'
 import { loader } from './auth.$provider.callback.ts'
 import { faker } from '@faker-js/faker'
 import { connectionSessionStorage } from '#app/utils/connections.server.ts'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
-import { invariant } from '#app/utils/misc.tsx'
 import { deleteGitHubUsers, insertGitHubUser } from '#tests/mocks/github.ts'
-import {
-	convertSetCookieToCookie,
-	insertNewUser,
-	insertedUsers,
-} from '#tests/db-utils.ts'
+import { convertSetCookieToCookie, insertNewUser } from '#tests/db-utils.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import {
 	getSessionExpirationDate,
 	sessionIdKey,
 } from '#app/utils/auth.server.ts'
+import { GITHUB_PROVIDER_NAME } from '#app/utils/connections.tsx'
+import { createUser } from '#prisma/seed.ts'
 
 const ROUTE_PATH = '/auth/github/callback'
 const PARAMS = { provider: 'github' }
 const BASE_URL = 'https://www.epicstack.dev'
 
-beforeAll(() => server.listen())
 afterEach(async () => {
-	server.resetHandlers()
 	await deleteGitHubUsers()
-	await prisma.user.deleteMany({
-		where: { id: { in: [...insertedUsers] } },
-	})
-	insertedUsers.clear()
-})
-afterAll(async () => {
-	server.close()
 })
 
 test('github auth failure', async () => {
@@ -49,45 +36,50 @@ test('github auth failure', async () => {
 		e => e,
 	)
 
-	expect(response.headers.get('location')).toBe('/login')
-	assertCookieSet(response, 'en_toast')
+	expect(response).toHaveRedirect('/login')
+	expect(response).toSendToast(
+		expect.objectContaining({
+			type: 'error',
+			title: 'Auth Error',
+		}),
+	)
 	expect(consoleError).toHaveBeenCalledTimes(1)
 	consoleError.mockClear()
 })
 
 test('existing connection for current user error', async () => {
+	const session = await setupUser()
 	const githubUser = await insertGitHubUser()
-	const user = await insertNewUser({
-		email: githubUser.primaryEmail.toLowerCase(),
-	})
 	await prisma.connection.create({
 		select: { id: true },
 		data: {
-			providerName: 'github',
+			providerName: GITHUB_PROVIDER_NAME,
 			providerId: githubUser.profile.id,
-			user: { connect: user },
+			userId: session.userId,
 		},
 	})
-	const session = await prisma.session.create({
-		select: { id: true },
-		data: {
-			expirationDate: getSessionExpirationDate(),
-			userId: user.id,
-		},
+	const request = await setupRequest({
+		sessionId: session.id,
+		code: githubUser.code,
 	})
-	const request = await setupRequest({ sessionId: session.id })
 	const response = await loader({ request, params: PARAMS, context: {} })
 
-	expect(response.headers.get('location')).toBe('/settings/profile/connections')
-	assertCookieSet(response, 'en_toast')
+	expect(response).toHaveRedirect('/settings/profile/connections')
+	expect(response).toSendToast(
+		expect.objectContaining({
+			type: 'message',
+			description: expect.stringContaining(githubUser.profile.login),
+			title: 'Already Connected',
+		}),
+	)
 })
 
 test('a new user onboarding', async () => {
 	const request = await setupRequest()
 	const response = await loader({ request, params: PARAMS, context: {} })
 
-	assertRedirect(response, '/onboarding/github')
-	assertCookieSet(response, 'en_verification')
+	expect(response).toHaveRedirect('/onboarding/github')
+	expect(response).toHaveCookie('en_verification')
 })
 
 test('login with new connection for existing user', async () => {
@@ -106,27 +98,14 @@ test('login with new connection for existing user', async () => {
 
 	expect(response.headers.get('location')).toBe('/settings/profile/connections')
 	expect(connection, 'connection was not found').toBeTruthy()
-	assertCookieSet(response, 'en_toast')
-	assertSessionMade(response, user.id)
-})
-
-test('login with existing connection', async () => {
-	const githubUser = await insertGitHubUser()
-	const user = await insertNewUser({
-		email: githubUser.primaryEmail.toLowerCase(),
-	})
-	const request = await setupRequest({ code: githubUser.code })
-	await prisma.connection.create({
-		data: {
-			providerName: 'github',
-			providerId: githubUser.profile.id,
-			user: { connect: user },
-		},
-	})
-	const response = await loader({ request, params: PARAMS, context: {} })
-
-	expect(response.headers.get('location')).toBe('/')
-	assertSessionMade(response, user.id)
+	expect(response).toSendToast(
+		expect.objectContaining({
+			type: 'success',
+			title: 'Connected',
+			description: expect.stringContaining('GitHub'),
+		}),
+	)
+	expect(response).toHaveSessionForUser(user.id)
 })
 
 test('create new connection for logged in user', async () => {
@@ -155,7 +134,32 @@ test('create new connection for logged in user', async () => {
 
 	expect(response.headers.get('location')).toBe('/settings/profile/connections')
 	expect(connection).toBeTruthy()
-	assertCookieSet(response, 'en_toast')
+	expect(response).toSendToast(
+		expect.objectContaining({
+			title: 'Connected',
+			type: 'success',
+			description: expect.stringContaining('GitHub'),
+		}),
+	)
+})
+
+test('login with existing connection', async () => {
+	const githubUser = await insertGitHubUser()
+	const user = await insertNewUser({
+		email: githubUser.primaryEmail.toLowerCase(),
+	})
+	const request = await setupRequest({ code: githubUser.code })
+	await prisma.connection.create({
+		data: {
+			providerName: 'github',
+			providerId: githubUser.profile.id,
+			user: { connect: user },
+		},
+	})
+	const response = await loader({ request, params: PARAMS, context: {} })
+
+	expect(response.headers.get('location')).toBe('/')
+	expect(response).toHaveSessionForUser(user.id)
 })
 
 async function setupRequest({
@@ -187,28 +191,14 @@ async function setupRequest({
 	})
 }
 
-function assertCookieSet(response: Response, cookieKey: string) {
-	const setCookie = response.headers.get('set-cookie')
-	invariant(setCookie, 'set-cookie should be set')
-	const parsedCookie = setCookieParser.splitCookiesString([setCookie])
-	expect(parsedCookie).toEqual(
-		expect.arrayContaining([expect.stringContaining(cookieKey)]),
-	)
-}
-
-async function assertSessionMade(response: Response, userId: string) {
-	assertCookieSet(response, 'en_session')
-	const session = await prisma.session.findFirst({
-		select: { id: true },
-		where: {
-			userId,
+async function setupUser(userData = createUser()) {
+	const user = await insertNewUser(userData)
+	const session = await prisma.session.create({
+		select: { id: true, userId: true },
+		data: {
+			userId: user.id,
+			expirationDate: getSessionExpirationDate(),
 		},
 	})
-	expect(session).toBeTruthy()
-}
-
-function assertRedirect(response: Response, redirectTo: string) {
-	expect(response.status).toBeGreaterThanOrEqual(300)
-	expect(response.status).toBeLessThan(400)
-	expect(response.headers.get('location')).toBe(redirectTo)
+	return session
 }

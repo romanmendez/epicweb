@@ -3,7 +3,7 @@ import { createCookieSessionStorage, redirect } from '@remix-run/node'
 import { z } from 'zod'
 import { combineHeaders } from './misc.tsx'
 
-const toastKey = 'toast'
+export const toastKey = 'toast'
 
 const TypeSchema = z.enum(['message', 'success', 'error'])
 const ToastSchema = z.object({
@@ -19,7 +19,7 @@ export type OptionalToast = Omit<Toast, 'id' | 'type'> & {
 	type?: z.infer<typeof TypeSchema>
 }
 
-const toastSessionStorage = createCookieSessionStorage({
+export const toastSessionStorage = createCookieSessionStorage({
 	cookie: {
 		name: 'en_toast',
 		sameSite: 'lax',
@@ -60,7 +60,7 @@ export async function getToast(request: Request) {
 		headers: toast
 			? new Headers({
 					'set-cookie': await toastSessionStorage.destroySession(session),
-			  })
+				})
 			: null,
 	}
 }

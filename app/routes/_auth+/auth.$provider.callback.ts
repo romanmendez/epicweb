@@ -62,15 +62,15 @@ export async function loader({ request, params }: DataFunctionArgs) {
 	const userId = await getUserId(request)
 
 	if (existingConnection && userId) {
-		throw await redirectWithToast(
+		return await redirectWithToast(
 			'/settings/profile/connections',
 			{
-				type: 'error',
-				title: 'Auth Error',
+				type: 'message',
+				title: 'Already Connected',
 				description:
 					existingConnection.userId === userId
-						? `You have already connected this account.`
-						: `This ${label} account has already been connected to another Epic Notes account.`,
+						? `Your "${profile.username}" ${label} is already connected to your account.`
+						: `The "${profile.username}" ${label} account is already associated to another account.`,
 			},
 			{
 				headers: destroyRedirectCookie,

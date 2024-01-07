@@ -91,8 +91,6 @@ export async function getNoteImages() {
 	return noteImages
 }
 
-export const insertedUsers = new Set<string>()
-
 export async function insertNewUser({
 	username,
 	password,

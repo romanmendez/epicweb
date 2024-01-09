@@ -6,7 +6,7 @@ import { faker } from '@faker-js/faker'
 import { connectionSessionStorage } from '#app/utils/connections.server.ts'
 import { consoleError } from '#tests/setup/setup-test-env.ts'
 import { deleteGitHubUsers, insertGitHubUser } from '#tests/mocks/github.ts'
-import { convertSetCookieToCookie, insertNewUser } from '#tests/db-utils.ts'
+import { convertSetCookieToCookie } from '#tests/db-utils.ts'
 import { prisma } from '#app/utils/db.server.ts'
 import { sessionStorage } from '#app/utils/session.server.ts'
 import {
@@ -84,14 +84,15 @@ test('a new user onboarding', async () => {
 
 test('login with new connection for existing user', async () => {
 	const githubUser = await insertGitHubUser()
-	const user = await insertNewUser({
+	const session = await setupUser({
+		...createUser(),
 		email: githubUser.primaryEmail.toLowerCase(),
 	})
 	const request = await setupRequest({ code: githubUser.code })
 	const response = await loader({ request, params: PARAMS, context: {} })
 	const connection = await prisma.connection.findFirst({
 		where: {
-			userId: user.id,
+			userId: session.userId,
 			providerId: githubUser.profile.id,
 		},
 	})
@@ -105,20 +106,14 @@ test('login with new connection for existing user', async () => {
 			description: expect.stringContaining('GitHub'),
 		}),
 	)
-	expect(response).toHaveSessionForUser(user.id)
+	expect(response).toHaveSessionForUser(session.userId)
 })
 
 test('create new connection for logged in user', async () => {
 	const githubUser = await insertGitHubUser()
-	const user = await insertNewUser({
+	const session = await setupUser({
+		...createUser(),
 		email: githubUser.primaryEmail.toLowerCase(),
-	})
-	const session = await prisma.session.create({
-		select: { id: true },
-		data: {
-			expirationDate: getSessionExpirationDate(),
-			user: { connect: user },
-		},
 	})
 	const request = await setupRequest({
 		sessionId: session.id,
@@ -127,7 +122,7 @@ test('create new connection for logged in user', async () => {
 	const response = await loader({ request, params: PARAMS, context: {} })
 	const connection = await prisma.connection.findFirst({
 		where: {
-			userId: user.id,
+			userId: session.userId,
 			providerId: githubUser.profile.id,
 		},
 	})
@@ -145,21 +140,22 @@ test('create new connection for logged in user', async () => {
 
 test('login with existing connection', async () => {
 	const githubUser = await insertGitHubUser()
-	const user = await insertNewUser({
+	const { userId } = await setupUser({
+		...createUser(),
 		email: githubUser.primaryEmail.toLowerCase(),
 	})
-	const request = await setupRequest({ code: githubUser.code })
 	await prisma.connection.create({
 		data: {
-			providerName: 'github',
-			providerId: githubUser.profile.id,
-			user: { connect: user },
+			providerName: GITHUB_PROVIDER_NAME,
+			providerId: githubUser.profile.id.toString(),
+			userId,
 		},
 	})
+	const request = await setupRequest({ code: githubUser.code })
 	const response = await loader({ request, params: PARAMS, context: {} })
 
-	expect(response.headers.get('location')).toBe('/')
-	expect(response).toHaveSessionForUser(user.id)
+	expect(response).toHaveRedirect('/')
+	expect(response).toHaveSessionForUser(userId)
 })
 
 async function setupRequest({
@@ -192,11 +188,14 @@ async function setupRequest({
 }
 
 async function setupUser(userData = createUser()) {
-	const user = await insertNewUser(userData)
 	const session = await prisma.session.create({
 		select: { id: true, userId: true },
 		data: {
-			userId: user.id,
+			user: {
+				create: {
+					...userData,
+				},
+			},
 			expirationDate: getSessionExpirationDate(),
 		},
 	})

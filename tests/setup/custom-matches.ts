@@ -108,7 +108,6 @@ expect.extend({
 	},
 	async toSendToast(response: Response, toast: OptionalToast) {
 		const setCookies = getSetCookie(response.headers)
-		console.log(setCookies, 'setCookies in toSendToast')
 		const toastSetCookie = setCookies.find(
 			c => setCookieParser.parseString(c).name === 'en_toast',
 		)

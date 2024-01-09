@@ -5,7 +5,6 @@ import bcrypt from 'bcryptjs'
 import { prisma } from '#app/utils/db.server.ts'
 import { getPasswordHash } from '#app/utils/auth.server.ts'
 import setCookieParser from 'set-cookie-parser'
-import { getUserImages } from '#prisma/seed.ts'
 
 const uniqueUsernameEnforcer = new UniqueEnforcer()
 
@@ -121,7 +120,6 @@ export async function insertNewUser({
 			password: { create: { hash: await getPasswordHash(password) } },
 		},
 	})
-	insertedUsers.add(user.id)
 	return user as typeof user & { name: string }
 }
 
